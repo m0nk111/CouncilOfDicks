@@ -118,3 +118,16 @@ export async function councilStartVoting(sessionId: string): Promise<string> {
 export async function councilCalculateConsensus(sessionId: string): Promise<string | null> {
   return await invoke("council_calculate_consensus", { sessionId });
 }
+
+// MCP server commands
+export async function mcpStart(): Promise<string> {
+  return await invoke("mcp_start");
+}
+
+export async function mcpStop(): Promise<string> {
+  return await invoke("mcp_stop");
+}
+
+export async function mcpStatus(): Promise<boolean> {
+  return await invoke("mcp_status");
+}

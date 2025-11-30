@@ -1,5 +1,6 @@
 mod config;
 mod council;
+mod mcp;
 mod ollama;
 mod state;
 mod logger;
@@ -173,6 +174,39 @@ async fn council_calculate_consensus(state: tauri::State<'_, AppState>, session_
     Ok(consensus)
 }
 
+// MCP server commands
+#[tauri::command]
+async fn mcp_start(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    state.log_info("mcp_start", "Starting MCP server");
+    let result = state.mcp_server.start().await;
+    
+    match &result {
+        Ok(msg) => state.log_success("mcp_start", msg),
+        Err(e) => state.log_error("mcp_start", &format!("Failed: {}", e)),
+    }
+    
+    result
+}
+
+#[tauri::command]
+async fn mcp_stop(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    state.log_info("mcp_stop", "Stopping MCP server");
+    let result = state.mcp_server.stop().await;
+    
+    match &result {
+        Ok(msg) => state.log_success("mcp_stop", msg),
+        Err(e) => state.log_error("mcp_stop", &format!("Failed: {}", e)),
+    }
+    
+    result
+}
+
+#[tauri::command]
+async fn mcp_status(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    state.log_debug("mcp_status", "Checking MCP server status");
+    Ok(state.mcp_server.is_running().await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
@@ -195,7 +229,10 @@ pub fn run() {
         council_list_sessions,
         council_add_response,
         council_start_voting,
-        council_calculate_consensus
+        council_calculate_consensus,
+        mcp_start,
+        mcp_stop,
+        mcp_status
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {
