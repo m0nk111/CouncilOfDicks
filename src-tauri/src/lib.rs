@@ -6,6 +6,7 @@ mod knowledge;
 mod mcp;
 mod ollama;
 mod personalities;
+mod providers;
 mod state;
 mod logger;
 mod metrics;
