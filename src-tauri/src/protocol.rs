@@ -1,6 +1,7 @@
 // Council message protocol for P2P communication
 
 use serde::{Deserialize, Serialize};
+use crate::crypto::SignedMessage;
 
 /// Message types for council communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,13 +14,12 @@ pub enum CouncilMessage {
         requester_peer_id: String,
     },
 
-    /// AI model response to question
+    /// AI model response to question (cryptographically signed)
     Response {
         question_id: String,
         model_name: String,
-        response: String,
+        signed_response: SignedMessage, // Content is signed, immutable
         peer_id: String,
-        timestamp: u64,
     },
 
     /// Blind vote commitment (hash of actual vote)
@@ -112,6 +112,8 @@ pub struct CouncilResponse {
     pub response: String,
     pub peer_id: String,
     pub timestamp: u64,
+    pub signature: Option<String>, // Base64 encoded Ed25519 signature
+    pub public_key: Option<String>, // Base64 encoded public key
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

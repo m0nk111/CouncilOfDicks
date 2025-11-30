@@ -49,13 +49,15 @@ impl CouncilSessionManager {
         session_id
     }
 
-    /// Add AI response to session
+    /// Add AI response to session (with optional signature verification)
     pub async fn add_response(
         &self,
         session_id: &str,
         model_name: String,
         response: String,
         peer_id: String,
+        signature: Option<String>,
+        public_key: Option<String>,
     ) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
         let session = sessions
@@ -76,6 +78,8 @@ impl CouncilSessionManager {
             response,
             peer_id,
             timestamp,
+            signature,
+            public_key,
         });
 
         Ok(())
@@ -277,7 +281,7 @@ mod tests {
         let session_id = manager.create_session("Test?".to_string()).await;
         
         let result = manager
-            .add_response(&session_id, "model1".to_string(), "answer1".to_string(), "peer1".to_string())
+            .add_response(&session_id, "model1".to_string(), "answer1".to_string(), "peer1".to_string(), None, None)
             .await;
         
         assert!(result.is_ok());
@@ -293,7 +297,7 @@ mod tests {
         let session_id = manager.create_session("Test?".to_string()).await;
         
         manager
-            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string())
+            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string(), None, None)
             .await
             .unwrap();
         
@@ -311,7 +315,7 @@ mod tests {
         
         // Setup session
         manager
-            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string())
+            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string(), None, None)
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();
@@ -347,7 +351,7 @@ mod tests {
         
         // Setup
         manager
-            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string())
+            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string(), None, None)
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();
@@ -391,7 +395,7 @@ mod tests {
         
         // Setup
         manager
-            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string())
+            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string(), None, None)
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();

@@ -1,5 +1,6 @@
 mod config;
 mod council;
+mod crypto;
 mod mcp;
 mod ollama;
 mod state;
@@ -34,12 +35,17 @@ async fn ask_ollama(
 
     let result = ollama::ask_ollama(&config.ollama_url, &config.ollama_model, question).await;
 
-    // Record result
+    // Record result and sign response
     match &result {
         Ok(response) => {
             let mut metrics = state.metrics.lock().unwrap();
             metrics.record_success(start);
             state.log_success("ask_ollama", &format!("← Response: {} chars", response.len()));
+            
+            // Sign the response
+            let signed = state.signing_identity.sign(response);
+            state.log_debug("ask_ollama", &format!("✍️ Response signed with key: {}...", 
+                signed.public_key[..16].to_string()));
         }
         Err(e) => {
             let mut metrics = state.metrics.lock().unwrap();
@@ -139,11 +145,23 @@ async fn council_add_response(
 ) -> Result<String, String> {
     state.log_debug("council_add_response", &format!("Adding response from {} to session {}", model_name, session_id));
     
+    // Sign the response
+    let signed = state.signing_identity.sign(&response);
+    state.log_debug("council_add_response", &format!("✍️ Signed with key: {}...", 
+        signed.public_key[..16].to_string()));
+    
     state.council_manager
-        .add_response(&session_id, model_name, response, peer_id)
+        .add_response(
+            &session_id, 
+            model_name, 
+            response, 
+            peer_id,
+            Some(signed.signature),
+            Some(signed.public_key),
+        )
         .await?;
     
-    Ok("Response added".to_string())
+    Ok("Response added and signed".to_string())
 }
 
 #[tauri::command]
@@ -172,6 +190,39 @@ async fn council_calculate_consensus(state: tauri::State<'_, AppState>, session_
     }
     
     Ok(consensus)
+}
+
+// Crypto commands
+#[tauri::command]
+async fn get_public_key(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    state.log_debug("get_public_key", "Fetching public key");
+    Ok(state.signing_identity.public_key_base64())
+}
+
+#[tauri::command]
+async fn verify_signature(
+    content: String,
+    signature: String,
+    public_key: String,
+    timestamp: u64,
+) -> Result<bool, String> {
+    use crate::crypto::{verify_signed_message, SignedMessage};
+    
+    let signed_msg = SignedMessage {
+        content,
+        signature,
+        public_key,
+        timestamp,
+    };
+    
+    verify_signed_message(&signed_msg)
+}
+
+#[tauri::command]
+async fn get_key_fingerprint(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    use crate::crypto::public_key_fingerprint;
+    let pubkey = state.signing_identity.public_key_base64();
+    public_key_fingerprint(&pubkey)
 }
 
 // MCP server commands
@@ -230,6 +281,9 @@ pub fn run() {
         council_add_response,
         council_start_voting,
         council_calculate_consensus,
+        get_public_key,
+        verify_signature,
+        get_key_fingerprint,
         mcp_start,
         mcp_stop,
         mcp_status
