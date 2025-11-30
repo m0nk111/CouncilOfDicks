@@ -3,6 +3,8 @@ mod ollama;
 mod state;
 mod logger;
 mod metrics;
+mod p2p;
+mod protocol;
 
 #[cfg(test)]
 mod tests;

@@ -27,3 +27,18 @@ tauri-plugin-shell = "2"
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 chrono = "0.4"
+
+# P2P networking
+libp2p = { version = "0.54", features = [
+    "tcp",
+    "mdns",
+    "noise",
+    "yamux",
+    "gossipsub",
+    "identify",
+    "kad",
+    "macros",
+    "tokio"
+] }
+futures = "0.3"
+async-trait = "0.1"

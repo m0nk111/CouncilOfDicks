@@ -1,0 +1,189 @@
+// Council message protocol for P2P communication
+
+use serde::{Deserialize, Serialize};
+
+/// Message types for council communication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum CouncilMessage {
+    /// Initial question to deliberate
+    Question {
+        id: String,
+        question: String,
+        requester_peer_id: String,
+    },
+
+    /// AI model response to question
+    Response {
+        question_id: String,
+        model_name: String,
+        response: String,
+        peer_id: String,
+        timestamp: u64,
+    },
+
+    /// Blind vote commitment (hash of actual vote)
+    VoteCommitment {
+        question_id: String,
+        commitment_hash: String,
+        voter_peer_id: String,
+    },
+
+    /// Reveal actual vote after all commitments received
+    VoteReveal {
+        question_id: String,
+        vote: String,
+        salt: String, // For verifying commitment
+        voter_peer_id: String,
+    },
+
+    /// Announce consensus reached
+    ConsensusReached {
+        question_id: String,
+        final_answer: String,
+        vote_count: u32,
+        participating_peers: Vec<String>,
+    },
+
+    /// Heartbeat to prove human is active
+    Heartbeat {
+        peer_id: String,
+        timestamp: u64,
+        challenge_response: Option<String>,
+    },
+
+    /// Request peer to prove human presence
+    HumanChallenge {
+        peer_id: String,
+        challenge: String,
+        expires_at: u64,
+    },
+
+    /// Peer discovery announcement
+    PeerAnnouncement {
+        peer_id: String,
+        models: Vec<String>,
+        reputation_tier: String,
+    },
+}
+
+impl CouncilMessage {
+    /// Serialize message to JSON bytes
+    pub fn to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+
+    /// Deserialize message from JSON bytes
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+
+    /// Get message type as string
+    pub fn message_type(&self) -> &str {
+        match self {
+            CouncilMessage::Question { .. } => "Question",
+            CouncilMessage::Response { .. } => "Response",
+            CouncilMessage::VoteCommitment { .. } => "VoteCommitment",
+            CouncilMessage::VoteReveal { .. } => "VoteReveal",
+            CouncilMessage::ConsensusReached { .. } => "ConsensusReached",
+            CouncilMessage::Heartbeat { .. } => "Heartbeat",
+            CouncilMessage::HumanChallenge { .. } => "HumanChallenge",
+            CouncilMessage::PeerAnnouncement { .. } => "PeerAnnouncement",
+        }
+    }
+}
+
+/// Council session state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CouncilSession {
+    pub id: String,
+    pub question: String,
+    pub responses: Vec<CouncilResponse>,
+    pub commitments: Vec<VoteCommitment>,
+    pub reveals: Vec<VoteReveal>,
+    pub consensus: Option<String>,
+    pub status: SessionStatus,
+    pub created_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CouncilResponse {
+    pub model_name: String,
+    pub response: String,
+    pub peer_id: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoteCommitment {
+    pub commitment_hash: String,
+    pub voter_peer_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoteReveal {
+    pub vote: String,
+    pub salt: String,
+    pub voter_peer_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SessionStatus {
+    GatheringResponses,
+    CommitmentPhase,
+    RevealPhase,
+    ConsensusReached,
+    Failed,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_message_serialization() {
+        let msg = CouncilMessage::Question {
+            id: "test-123".to_string(),
+            question: "What is the answer?".to_string(),
+            requester_peer_id: "peer-xyz".to_string(),
+        };
+
+        let bytes = msg.to_bytes().unwrap();
+        let deserialized = CouncilMessage::from_bytes(&bytes).unwrap();
+
+        assert_eq!(msg.message_type(), deserialized.message_type());
+    }
+
+    #[test]
+    fn test_message_types() {
+        let question = CouncilMessage::Question {
+            id: "1".to_string(),
+            question: "test".to_string(),
+            requester_peer_id: "peer1".to_string(),
+        };
+        assert_eq!(question.message_type(), "Question");
+
+        let heartbeat = CouncilMessage::Heartbeat {
+            peer_id: "peer1".to_string(),
+            timestamp: 123456,
+            challenge_response: None,
+        };
+        assert_eq!(heartbeat.message_type(), "Heartbeat");
+    }
+
+    #[test]
+    fn test_session_status() {
+        let session = CouncilSession {
+            id: "test".to_string(),
+            question: "test".to_string(),
+            responses: vec![],
+            commitments: vec![],
+            reveals: vec![],
+            consensus: None,
+            status: SessionStatus::GatheringResponses,
+            created_at: 0,
+        };
+
+        assert_eq!(session.status, SessionStatus::GatheringResponses);
+    }
+}
