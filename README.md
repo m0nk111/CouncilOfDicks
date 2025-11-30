@@ -15,6 +15,9 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
   - HTTP REST API (Axum 0.7 on port 8080)
   - Native Tauri app (23MB executable)
   - Dual deployment: `./app` (GUI) or `./app --server` (web)
+  - **Frontend dual-mode support** (automatic Tauri vs HTTP detection)
+  - **WebSocket real-time chat** (ws://localhost:8080/ws/chat, replaces polling)
+  - **Docker deployment** (multi-stage build, bundled Ollama, health checks)
 - Tauri 2.0 cross-platform application (Rust + Svelte 5)
 - **Chat-based UI** (4 channels: #general, #human, #knowledge, #vote)
 - **Rate limiting & spam detection** (2/min, 10/hour, 50/day + pattern recognition)
@@ -30,13 +33,13 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 - Comprehensive logging & metrics (debug mode + performance tracking)
 - **97 backend tests passing**
 
-⏳ **In Development:**
-- Frontend dual-mode support (Tauri invoke vs fetch)
-- WebSocket real-time chat (replace 5-second polling)
-- Docker container for self-hosted deployment
-- DDoS protection (circuit breakers, proof-of-work)
+⏳ **Next Phase (v0.7.0+):**
+- DDoS protection (circuit breakers, proof-of-work, IP whitelisting)
+- CORS & API authentication (JWT tokens, rate limiting by key)
+- Frontend production build (Svelte dist/ in Docker)
 - Proof of Human Value (PoHV) safety mechanisms
 - Reputation/ranking system (5-tier meritocracy)
+- Distributed knowledge bank (IPFS integration)
 
 ## 🌟 Core Philosophy
 
@@ -204,12 +207,14 @@ ollama pull llama3.2:3b       # 2GB
 ollama pull qwen2.5:3b        # 2.3GB
 ```
 
-### Deployment Options (NEW v0.6.0)
+### 🚀 Deployment Options (NEW v0.6.0)
 
 **Choose your deployment mode based on your needs:**
 
 #### 1️⃣ **Native App** (Power Users - Recommended)
 Desktop application with full features, offline support, 23MB executable.
+
+**Best for:** Desktop users who want native OS integration, system tray, offline mode, best performance.
 
 ```bash
 # Build native app
@@ -224,8 +229,12 @@ pnpm tauri build
 # macOS: council-of-dicks_0.6.0_x64.dmg
 ```
 
+**Features:** System tray, offline support, native notifications, auto-updates (planned)
+
 #### 2️⃣ **HTTP Server** (Web Browser - Instant Access)
 Run as HTTP server for browser access (no installation needed).
+
+**Best for:** Quick demos, remote access, multi-device usage, team collaboration.
 
 ```bash
 # Build once
@@ -234,6 +243,7 @@ cargo build --release --manifest-path=src-tauri/Cargo.toml
 # Start HTTP server
 ./src-tauri/target/release/app --server
 # Opens on http://localhost:8080
+# WebSocket: ws://localhost:8080/ws/chat
 
 # Or specify port/host:
 ./src-tauri/target/release/app --server --port 3000 --host 0.0.0.0
@@ -241,13 +251,53 @@ cargo build --release --manifest-path=src-tauri/Cargo.toml
 
 Then open browser: `http://localhost:8080`
 
-#### 3️⃣ **Docker** (Self-Hosted - Coming Soon)
-One-command deployment for servers, includes Ollama.
+**Features:** Browser access, real-time WebSocket updates, mobile-friendly, no installation
+
+#### 3️⃣ **Docker** (Self-Hosted - One-Command Deploy)
+Containerized deployment with bundled Ollama, persistent storage, health checks.
+
+**Best for:** Servers, cloud VPS, home labs, production deployments, easy scaling.
 
 ```bash
-# TODO: Docker support planned for v0.7.0
+# Quick start (includes Ollama)
 docker-compose up -d
-# Access: http://localhost:8080
+
+# Access web UI
+http://localhost:8080
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f council
+```
+
+**What you get:**
+- ✅ Council server (HTTP + WebSocket + MCP)
+- ✅ Ollama bundled (GPU support ready)
+- ✅ Persistent volumes (data survives restarts)
+- ✅ Health checks (auto-restart if unhealthy)
+- ✅ One-command start/stop/update
+
+**Advanced:** See [docs/DOCKER.md](docs/DOCKER.md) for configuration, production deployment, backup/restore, custom Ollama, and troubleshooting.
+
+**Quick reference:**
+```bash
+# Stop everything
+docker-compose down
+
+# Stop + remove data
+docker-compose down -v
+
+# Update to latest
+git pull
+docker-compose up -d --build
+
+# Use external Ollama (save resources)
+docker run -d \
+  -p 8080:8080 -p 9001:9001 \
+  -e OLLAMA_URL=http://192.168.1.5:11434 \
+  council-of-dicks:latest
 ```
 
 ### Development Setup
