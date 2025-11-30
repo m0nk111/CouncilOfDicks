@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.github
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+.svelte-kit/
+build/
+
+# Tauri (we only need HTTP server mode)
+src-tauri/target/
+src-tauri/WixTools/
+
+# Development
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files (but keep test HTML pages)
+**/tests/
+**/*_test.rs
+**/*_test.ts
+
+# Runtime data
+council_identity.key
+council_knowledge.db*
+*.sqlite*
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Council Of Dicks HTTP Server
+  council:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: council-of-dicks
+    ports:
+      - "8080:8080"  # HTTP API + WebSocket
+      - "9001:9001"  # MCP server (optional)
+    environment:
+      # Ollama connection (adjust to your setup)
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5-coder:7b
+      
+      # Or connect to host Ollama:
+      # - OLLAMA_URL=http://host.docker.internal:11434
+      
+      # Debug mode
+      - RUST_LOG=info
+      - DEBUG_ENABLED=true
+    volumes:
+      # Persist data
+      - council-data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    networks:
+      - council-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Ollama AI Server (optional - use if you don't have Ollama elsewhere)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: council-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - council-network
+    # Uncomment if you have GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  council-data:
+    driver: local
+  ollama-data:
+    driver: local
+
+networks:
+  council-network:
+    driver: bridge
