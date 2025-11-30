@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::chat::ChannelManager;
+use crate::chat::{ChannelManager, DuplicateFilter};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -21,6 +21,7 @@ pub struct AppState {
     pub signing_identity: Arc<SigningIdentity>,
     pub knowledge_bank: Option<Arc<KnowledgeBank>>,
     pub channel_manager: Arc<ChannelManager>,
+    pub duplicate_filter: Option<Arc<DuplicateFilter>>,
 }
 
 impl AppState {
@@ -86,6 +87,11 @@ impl AppState {
             "🤖 Welcome to Council Of Dicks! Type /help for commands.".to_string(),
         );
 
+        // Initialize duplicate filter if knowledge bank is available
+        let duplicate_filter = kb.as_ref().map(|kb| {
+            Arc::new(DuplicateFilter::new(kb.clone()))
+        });
+
         Self {
             config: Arc::new(Mutex::new(AppConfig::default())),
             logger: logger.clone(),
@@ -96,6 +102,7 @@ impl AppState {
             signing_identity,
             knowledge_bank: kb,
             channel_manager,
+            duplicate_filter,
         }
     }
 

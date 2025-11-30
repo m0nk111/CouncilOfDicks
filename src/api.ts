@@ -42,6 +42,15 @@ export interface ChatMessage {
   reactions: Reaction[];
 }
 
+export interface DuplicateCheckResult {
+  is_duplicate: boolean;
+  similarity_score: number;
+  existing_session_id?: string;
+  existing_question?: string;
+  existing_verdict?: string;
+  asked_at?: string;
+}
+
 export async function askCouncil(question: string): Promise<string> {
   return await invoke("ask_ollama", { question });
 }
@@ -242,6 +251,12 @@ export async function chatGetMessageCount(
   channel: ChannelType
 ): Promise<number> {
   return await invoke("chat_get_message_count", { channel });
+}
+
+export async function chatCheckDuplicate(
+  question: string
+): Promise<DuplicateCheckResult> {
+  return await invoke("chat_check_duplicate", { question });
 }
 
 // Provider management commands

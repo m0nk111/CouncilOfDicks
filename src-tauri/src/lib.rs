@@ -480,6 +480,41 @@ fn chat_get_message_count(
     state.channel_manager.message_count(channel_type)
 }
 
+#[tauri::command]
+async fn chat_check_duplicate(
+    question: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<chat::DuplicateCheckResult, String> {
+    let duplicate_filter = state
+        .duplicate_filter
+        .as_ref()
+        .ok_or_else(|| "Duplicate filter not available (knowledge bank not initialized)".to_string())?;
+
+    state.log_debug("duplicate_check", &format!("Checking question: {}", question));
+
+    let result = duplicate_filter.check_duplicate(&question).await?;
+
+    if result.is_duplicate {
+        state.log_info(
+            "duplicate_check",
+            &format!(
+                "Duplicate found (score: {:.2}): session #{}",
+                result.similarity_score,
+                result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string())
+            ),
+        );
+    } else if result.similarity_score >= 0.70 {
+        state.log_info(
+            "duplicate_check",
+            &format!("Related question found (score: {:.2})", result.similarity_score),
+        );
+    } else {
+        state.log_debug("duplicate_check", "No similar questions found");
+    }
+
+    Ok(result)
+}
+
 // Provider management commands
 #[tauri::command]
 async fn provider_add(
@@ -655,7 +690,8 @@ pub fn run() {
         chat_send_message,
         chat_get_messages,
         chat_add_reaction,
-        chat_get_message_count
+        chat_get_message_count,
+        chat_check_duplicate
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

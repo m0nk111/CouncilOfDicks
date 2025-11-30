@@ -454,6 +454,101 @@ impl KnowledgeBank {
         Ok(results)
     }
 
+    /// Get a specific deliberation by ID
+    pub async fn get_deliberation(&self, deliberation_id: &str) -> Result<DeliberationResult, String> {
+        self.logger.log(
+            LogLevel::Info,
+            "knowledge",
+            &format!("📖 Retrieving deliberation: {}", deliberation_id),
+        );
+
+        // Get main deliberation
+        let row = sqlx::query(
+            r#"
+            SELECT id, question, consensus, created_at, completed
+            FROM deliberations
+            WHERE id = ?
+            "#,
+        )
+        .bind(deliberation_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| format!("Deliberation not found: {}", e))?;
+
+        let session_id: String = row.get("id");
+        let question: String = row.get("question");
+        let consensus: f32 = row.get("consensus");
+        let created_at: i64 = row.get("created_at");
+        let completed: bool = row.get("completed");
+
+        // Get rounds
+        let round_rows = sqlx::query(
+            r#"
+            SELECT id, round_number
+            FROM rounds
+            WHERE deliberation_id = ?
+            ORDER BY round_number
+            "#,
+        )
+        .bind(&session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to fetch rounds: {}", e))?;
+
+        let mut rounds = Vec::new();
+        for round_row in round_rows {
+            let round_id: i64 = round_row.get("id");
+            let round_number: i64 = round_row.get("round_number");
+
+            // Get responses for this round
+            let response_rows = sqlx::query(
+                r#"
+                SELECT agent_name, response_text, vote
+                FROM responses
+                WHERE round_id = ?
+                "#,
+            )
+            .bind(round_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| format!("Failed to fetch responses: {}", e))?;
+
+            let mut responses = Vec::new();
+            for resp_row in response_rows {
+                let agent_name: String = resp_row.get("agent_name");
+                let response_text: String = resp_row.get("response_text");
+
+                responses.push(crate::deliberation::MemberResponse {
+                    member_name: agent_name,
+                    model: "unknown".to_string(), // Not stored in DB
+                    response: response_text,
+                    timestamp: created_at as u64,
+                });
+            }
+
+            rounds.push(DeliberationRound {
+                round_number: round_number as usize,
+                responses,
+            });
+        }
+
+        // Generate consensus text from score
+        let consensus_text = if consensus >= 0.67 {
+            Some(format!("Consensus reached ({:.0}%)", consensus * 100.0))
+        } else {
+            None
+        };
+
+        Ok(DeliberationResult {
+            session_id,
+            question,
+            rounds,
+            consensus: consensus_text,
+            created_at: created_at as u64,
+            completed,
+        })
+    }
+
     /// Build RAG context for a question
     pub async fn build_rag_context(&self, question: &str, top_k: usize) -> Result<RAGContext, String> {
         let relevant = self.semantic_search(question, top_k).await?;

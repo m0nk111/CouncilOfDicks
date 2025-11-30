@@ -1,3 +1,5 @@
 pub mod channel;
+pub mod duplicate_filter;
 
-pub use channel::{AuthorType, Channel, ChannelManager, ChannelType, Message, Reaction};
+pub use channel::{AuthorType, ChannelManager, ChannelType, Message};
+pub use duplicate_filter::{DuplicateCheckResult, DuplicateFilter, DuplicateFilterConfig};
