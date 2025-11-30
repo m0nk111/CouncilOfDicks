@@ -1,4 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { apiCall, isTauriEnvironment } from "./api-adapter";
+
+// Re-export for convenience
+export { isTauriEnvironment };
 
 export interface AppConfig {
   ollama_url: string;
@@ -52,15 +56,26 @@ export interface DuplicateCheckResult {
 }
 
 export async function askCouncil(question: string): Promise<string> {
-  return await invoke("ask_ollama", { question });
+  return await apiCall<string>("ask_ollama", "POST /api/ollama/ask", { 
+    prompt: question,
+    model: undefined // Use default model
+  }).then(result => {
+    // Web mode returns {response: string}, Tauri returns string directly
+    return typeof result === 'object' && 'response' in result ? (result as any).response : result;
+  });
 }
 
 export async function getConfig(): Promise<AppConfig> {
-  return await invoke("get_config");
+  return await apiCall<AppConfig>("get_config", "GET /api/config");
 }
 
 export async function setDebug(enabled: boolean): Promise<void> {
-  return await invoke("set_debug", { enabled });
+  if (isTauriEnvironment()) {
+    return await invoke("set_debug", { enabled });
+  } else {
+    // Web mode: not implemented yet (TODO: add to HTTP API)
+    console.warn("setDebug not available in web mode");
+  }
 }
 
 export async function getMetrics(): Promise<PerformanceMetrics> {
@@ -216,13 +231,19 @@ export async function chatSendMessage(
   content: string,
   signature?: string
 ): Promise<string> {
-  return await invoke("chat_send_message", {
-    channel,
-    author,
-    authorType,
-    content,
-    signature,
-  });
+  if (isTauriEnvironment()) {
+    return await invoke("chat_send_message", {
+      channel,
+      author,
+      authorType,
+      content,
+      signature,
+    });
+  } else {
+    // Web mode: TODO - add HTTP endpoint
+    console.warn("chatSendMessage not yet available in web mode");
+    return "message-id-placeholder";
+  }
 }
 
 export async function chatGetMessages(
@@ -230,7 +251,13 @@ export async function chatGetMessages(
   limit: number = 50,
   offset: number = 0
 ): Promise<ChatMessage[]> {
-  return await invoke("chat_get_messages", { channel, limit, offset });
+  if (isTauriEnvironment()) {
+    return await invoke("chat_get_messages", { channel, limit, offset });
+  } else {
+    // Web mode: TODO - add HTTP endpoint
+    console.warn("chatGetMessages not yet available in web mode");
+    return [];
+  }
 }
 
 export async function chatAddReaction(

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Council Of Dicks - Web Mode Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .mode-indicator {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .mode-web {
+            background: #10b981;
+            color: white;
+        }
+        .mode-native {
+            background: #3b82f6;
+            color: white;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        .success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+        .info {
+            background: #e0e7ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ Council Of Dicks</h1>
+        <p class="subtitle">Hybrid Web+Native Architecture - Test Page</p>
+        
+        <div id="modeIndicator" class="mode-indicator"></div>
+        
+        <div class="info">
+            <strong>🔧 Deployment Mode Detected:</strong> This page automatically detects whether you're running
+            in the native Tauri app or web browser, and uses the appropriate API (Tauri invoke vs HTTP fetch).
+        </div>
+
+        <!-- Health Check -->
+        <div class="test-section">
+            <h3>🏥 Health Check</h3>
+            <button onclick="testHealth()">Check Server Health</button>
+            <div id="healthResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Config Test -->
+        <div class="test-section">
+            <h3>⚙️ Configuration</h3>
+            <button onclick="testConfig()">Get Config</button>
+            <div id="configResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Ollama Test -->
+        <div class="test-section">
+            <h3>🤖 Ask Ollama</h3>
+            <textarea id="ollamaPrompt" rows="3" placeholder="Enter your question (e.g., 'What is 2+2?')">What is the capital of France? Answer in one sentence.</textarea>
+            <button onclick="testOllama()">Ask Question</button>
+            <div id="ollamaResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- API Endpoints Info -->
+        <div class="test-section">
+            <h3>📡 Available HTTP Endpoints</h3>
+            <ul style="padding-left: 20px; color: #666;">
+                <li><code>GET /health</code> - Health check</li>
+                <li><code>GET /api/config</code> - Get configuration</li>
+                <li><code>POST /api/ollama/ask</code> - Ask Ollama a question</li>
+            </ul>
+            <p style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                Base URL: <strong id="baseUrl"></strong>
+            </p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Detect environment
+        const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+        const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8080' : window.location.origin;
+        
+        document.getElementById('baseUrl').textContent = baseUrl;
+        
+        const modeEl = document.getElementById('modeIndicator');
+        if (isTauri) {
+            modeEl.textContent = '🖥️ NATIVE MODE (Tauri)';
+            modeEl.className = 'mode-indicator mode-native';
+        } else {
+            modeEl.textContent = '🌐 WEB MODE (Browser)';
+            modeEl.className = 'mode-indicator mode-web';
+        }
+
+        // Health check
+        window.testHealth = async function() {
+            const resultEl = document.getElementById('healthResult');
+            resultEl.style.display = 'block';
+            resultEl.className = 'result';
+            resultEl.textContent = '⏳ Checking...';
+            
+            try {
+                const response = await fetch(`${baseUrl}/health`);
+                const text = await response.text();
+                resultEl.className = 'result success';
+                resultEl.textContent = `✅ Server is healthy: ${text}`;
+            } catch (error) {
+                resultEl.className = 'result error';
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        };
+
+        // Config test
+        window.testConfig = async function() {
+            const resultEl = document.getElementById('configResult');
+            resultEl.style.display = 'block';
+            resultEl.className = 'result';
+            resultEl.textContent = '⏳ Loading config...';
+            
+            try {
+                const response = await fetch(`${baseUrl}/api/config`);
+                const config = await response.json();
+                resultEl.className = 'result success';
+                resultEl.textContent = JSON.stringify(config, null, 2);
+            } catch (error) {
+                resultEl.className = 'result error';
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        };
+
+        // Ollama test
+        window.testOllama = async function() {
+            const prompt = document.getElementById('ollamaPrompt').value;
+            const resultEl = document.getElementById('ollamaResult');
+            resultEl.style.display = 'block';
+            resultEl.className = 'result';
+            resultEl.textContent = '⏳ Asking Ollama...';
+            
+            try {
+                const response = await fetch(`${baseUrl}/api/ollama/ask`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || response.statusText);
+                }
+                
+                const data = await response.json();
+                resultEl.className = 'result success';
+                resultEl.textContent = `🤖 Response:\n\n${data.response}`;
+            } catch (error) {
+                resultEl.className = 'result error';
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        };
+
+        console.log(`🔧 Running in ${isTauri ? 'NATIVE' : 'WEB'} mode`);
+        console.log(`📡 API Base URL: ${baseUrl}`);
+    </script>
+</body>
+</html>

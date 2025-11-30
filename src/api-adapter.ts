@@ -1,0 +1,69 @@
+// Environment detection and API adapter for dual-mode deployment
+// Supports both Tauri native app and web browser access
+
+import { invoke } from "@tauri-apps/api/core";
+
+// Detect if running in Tauri (native app) or web browser
+export function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+}
+
+// Get API base URL for web mode
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    // Use current origin in production, localhost in development
+    return window.location.hostname === 'localhost' 
+      ? 'http://localhost:8080'
+      : window.location.origin;
+  }
+  return 'http://localhost:8080';
+}
+
+// Unified API call that works in both Tauri and web modes
+export async function apiCall<T>(
+  tauriCommand: string,
+  httpEndpoint: string,
+  params?: Record<string, any>
+): Promise<T> {
+  if (isTauriEnvironment()) {
+    // Native app: use Tauri invoke
+    return await invoke<T>(tauriCommand, params || {});
+  } else {
+    // Web browser: use fetch
+    const baseUrl = getApiBaseUrl();
+    const method = httpEndpoint.startsWith('GET ') ? 'GET' : 'POST';
+    const path = httpEndpoint.replace(/^(GET|POST) /, '');
+    
+    const options: RequestInit = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+    
+    if (method === 'POST' && params) {
+      options.body = JSON.stringify(params);
+    }
+    
+    const url = method === 'GET' && params
+      ? `${baseUrl}${path}?${new URLSearchParams(params as any).toString()}`
+      : `${baseUrl}${path}`;
+    
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+}
+
+// Log current mode on startup
+if (typeof window !== 'undefined') {
+  console.log(
+    `🔧 Running in ${isTauriEnvironment() ? 'NATIVE' : 'WEB'} mode`,
+    isTauriEnvironment() ? '(Tauri invoke)' : `(HTTP API: ${getApiBaseUrl()})`
+  );
+}

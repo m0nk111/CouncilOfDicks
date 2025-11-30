@@ -167,12 +167,27 @@ async fn config_get(
 }
 
 async fn static_handler() -> impl IntoResponse {
-    // TODO: Serve frontend files from dist/
-    // For now, return a simple HTML page
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/html")],
-        r#"<!DOCTYPE html>
+    // Serve test page from workspace root
+    // TODO: Serve production frontend from dist/ when built
+    let test_page_path = std::path::PathBuf::from("./test-web-mode.html");
+    
+    if test_page_path.exists() {
+        match tokio::fs::read_to_string(test_page_path).await {
+            Ok(content) => {
+                return (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, "text/html")],
+                    content
+                ).into_response();
+            }
+            Err(_) => {
+                // Fall through to default page
+            }
+        }
+    }
+    
+    // Fallback: simple API documentation page
+    let fallback_html = r#"<!DOCTYPE html>
 <html>
 <head>
     <title>Council Of Dicks</title>
@@ -202,8 +217,13 @@ async fn static_handler() -> impl IntoResponse {
     
     <p><em>Frontend UI coming soon...</em></p>
 </body>
-</html>"#
-    )
+</html>"#;
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html")],
+        fallback_html
+    ).into_response()
 }
 
 // ========================================
