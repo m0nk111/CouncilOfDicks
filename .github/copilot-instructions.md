@@ -4,6 +4,24 @@
 
 This is a **decentralized P2P network** for AI consensus deliberation. Multiple AI models debate questions until they reach consensus, creating a democratic approach to AI decision-making that serves humanity.
 
+### Current Status: v0.3.0-alpha (2025-11-30)
+
+**Foundation Complete:** ✅
+- Tauri 2.0 + Svelte 5 cross-platform app
+- Ollama AI integration (local + network)
+- P2P networking (libp2p 0.54: gossipsub, mDNS, Kademlia DHT)
+- Council deliberation system (multi-round, blind voting, 67% consensus)
+- Ed25519 cryptographic signatures (response authentication, 128-bit security)
+- MCP server (JSON-RPC 2.0 on port 9001 for external AI agents)
+- Comprehensive logging & metrics (emoji-prefixed debug, performance tracking)
+- 36 backend tests passing (10 core + 2 P2P + 3 protocol + 5 manager + 6 council + 3 MCP + 7 crypto)
+
+**Next Phase:**
+- Council UI panel (Svelte frontend for session management)
+- Proof of Human Value (PoHV) safety mechanisms
+- Reputation/ranking system (5-tier meritocracy)
+- Knowledge bank persistence (SQLite + IPFS)
+
 ## Global Workspace Rules (Applied from User Standards)
 
 ### Project Structure Convention
@@ -47,12 +65,20 @@ When implementing any feature:
 
 ## Tech Stack
 
-- **Backend**: Rust (Tauri framework)
-- **Frontend**: Svelte/SvelteKit
-- **P2P**: libp2p
-- **AI Models**: Ollama API
-- **Storage**: SQLite + IPFS for distributed knowledge bank
-- **Cross-platform**: Single binary for Windows, macOS, Linux
+### Implemented (v0.3.0-alpha)
+- **Backend**: Rust (Tauri 2.0, tokio async runtime, Arc<Mutex> state)
+- **Frontend**: Svelte 5 + TypeScript + Vite (dev server on port 5174)
+- **P2P**: libp2p 0.54 (tcp, mdns, gossipsub, kademlia, noise encryption, yamux multiplexing)
+- **AI Models**: Ollama API (http://192.168.1.5:11434, default model: qwen2.5-coder:7b)
+- **Crypto**: ed25519-dalek 2.1 (digital signatures, 50μs sign, 150μs verify)
+- **MCP**: Custom JSON-RPC 2.0 server (tokio::net, localhost:9001)
+- **Logging**: Custom logger with emoji prefixes, colors, timestamps, debug filtering
+- **Metrics**: PerformanceMetrics with rolling averages (100 requests)
+- **Testing**: 36 backend tests, headless-compatible
+
+### Planned
+- **Storage**: SQLite (session persistence) + IPFS (distributed knowledge bank)
+- **Cross-platform**: Single binary for Windows, macOS, Linux (Tauri build system)
 
 ## Code Style Guidelines
 
@@ -89,17 +115,38 @@ When implementing any feature:
 
 ### Council Logic
 ```rust
-// Blind voting with cryptographic commitments
-// Byzantine fault tolerance (67% consensus required)
-// Reputation updates delayed by 7 days
+// Blind voting with cryptographic commitments (IMPLEMENTED v0.3.0)
+// Byzantine fault tolerance (67% consensus required) (IMPLEMENTED v0.3.0)
+// Session management: create, add responses, vote, check consensus (IMPLEMENTED v0.3.0)
+// Signature integration: responses can be signed with Ed25519 (IMPLEMENTED v0.3.0)
+// Reputation updates delayed by 7 days (PLANNED)
 ```
 
-### Safety Systems
+### Cryptographic Signatures (NEW v0.3.0)
 ```rust
-// Multiple independent failsafes
-// Heartbeat monitoring every 10 minutes
-// Random human challenges
-// Graceful degradation to read-only mode
+// Ed25519 digital signatures for AI responses
+// SigningIdentity: generate, load, save, sign messages
+// Verification: verify_signed_message() with timestamp check
+// Security: 128-bit, authenticity + integrity + non-repudiation
+// Performance: 50μs signing, 150μs verification
+// Key management: council_identity.key (auto-generated on first run)
+```
+
+### MCP Server (NEW v0.3.0)
+```rust
+// Model Context Protocol for external AI agent integration
+// JSON-RPC 2.0 server on localhost:9001
+// Tools: council_ask, council_get_session, council_list_sessions, tools/list
+// Security: localhost binding only, no external access
+// Use case: Claude Desktop, other AI agents can use council as tool
+```
+
+### Safety Systems (PLANNED)
+```rust
+// Multiple independent failsafes (PoHV - Proof of Human Value)
+// Heartbeat monitoring every 10 minutes (PLANNED)
+// Random human challenges (PLANNED)
+// Graceful degradation to read-only mode (PLANNED)
 ```
 
 ## Key Concepts
@@ -137,13 +184,24 @@ export async function startCouncil(question: string): Promise<string> {
 }
 ```
 
-## Testing Priorities
+## Testing Status & Priorities
 
-1. **P2P networking** - peer discovery, message routing, NAT traversal
-2. **Safety systems** - heartbeat monitoring, dead man's switch triggers
-3. **Voting mechanisms** - blind voting, consensus calculation, anti-gaming
-4. **Knowledge bank** - storage, retrieval, semantic search
-5. **UI responsiveness** - real-time updates, error handling
+### Implemented (36 tests passing ✅)
+- ✅ **Core functionality** (10 tests): config, state, ollama, logger, metrics
+- ✅ **P2P networking** (2 tests): message creation, peer management
+- ✅ **Protocol** (3 tests): message types, serialization
+- ✅ **P2P Manager** (5 tests): network lifecycle, peer management
+- ✅ **Council logic** (6 tests): session creation, voting, consensus, blind voting
+- ✅ **MCP server** (3 tests): JSON-RPC requests, tool listing, council integration
+- ✅ **Cryptography** (7 tests): signing, verification, identity management, replay attack prevention
+
+### Testing Priorities (Next)
+1. **Frontend tests** - Svelte component testing, Tauri command integration
+2. **P2P integration tests** - multi-node scenarios, message routing, NAT traversal
+3. **Council UI tests** - session management UI, voting interface
+4. **Safety systems** - heartbeat monitoring, dead man's switch triggers (when implemented)
+5. **Knowledge bank** - storage, retrieval, semantic search (when implemented)
+6. **Performance tests** - load testing, stress testing, benchmark suite
 
 ## Security Considerations
 
@@ -188,9 +246,58 @@ export async function startCouncil(question: string): Promise<string> {
 - Update issue status when starting work (self-assign + comment)
 - All code changes go through PRs (no direct commits to main after foundation)
 
-**Foundation Phase (Current):**
-- Direct commits allowed for MVP/basic structure
-- Once Tauri app + basic Ollama integration works → switch to issue-driven workflow
+**Foundation Phase (Complete):**
+- ✅ Tauri app + Ollama integration + P2P networking + Council logic + Crypto + MCP
+- ✅ 36 backend tests passing
+- 🔄 **Ready to switch to issue-driven workflow** for next features
+
+**Current Work Mode:**
+- **Council UI**: Can use issues or direct commits (UI iteration)
+- **PoHV Safety**: Should use issues (complex feature)
+- **Reputation System**: Should use issues (complex feature)
+- **Bug fixes**: Direct commits for trivial fixes, issues for complex bugs
+
+## Documentation Maintenance (IMPORTANT)
+
+When implementing new features, **always update documentation**:
+
+1. **Code Changes**:
+   - Update relevant `.md` files in `docs/` (e.g., ARCHITECTURE.md, P2P.md, CRYPTO.md)
+   - Create new documentation file if introducing major new system
+   - Add inline code comments for complex algorithms
+
+2. **Version History**:
+   - Update `CHANGELOG.md` with changes under appropriate version
+   - Follow semantic versioning (MAJOR.MINOR.PATCH-stage)
+   - Include technical details (e.g., "Ed25519: 128-bit, 50μs signing")
+
+3. **Main Documentation**:
+   - Update `README.md` if feature affects user-facing functionality
+   - Keep "Current Status" section accurate (version, test count, features)
+   - Update architecture diagram if structure changes
+
+4. **TODO Tracking**:
+   - Move completed items from TODO.md to CHANGELOG.md
+   - Keep TODO.md focused on actionable next steps
+   - Remove outdated planning notes
+
+5. **Agent Instructions**:
+   - Update `.github/copilot-instructions.md` when:
+     - Major features complete (update "Current Status")
+     - Tech stack changes (new dependencies, versions)
+     - Testing coverage expands (update test counts)
+     - Development workflow changes
+
+**Example Documentation Update Flow:**
+```
+1. Implement feature → Write tests → Tests pass
+2. Add/update docs/FEATURE.md with detailed explanation
+3. Update CHANGELOG.md with [version] entry
+4. Update README.md "Current Status" section
+5. Update .github/copilot-instructions.md if major feature
+6. Remove from TODO.md if it was tracked there
+7. Commit with message: "feat: feature name + docs: documentation updates"
+```
 
 ## What to Avoid
 
