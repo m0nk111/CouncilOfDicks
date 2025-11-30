@@ -375,7 +375,6 @@ TheCouncelOfDicks/
 │
 ├── README.md               # This file
 ├── CHANGELOG.md            # Version history (v0.1.0 - v0.3.0-alpha)
-├── TODO.md                 # Development roadmap
 └── LICENSE                 # Custom commercial license
 ```
 
@@ -436,7 +435,6 @@ Comprehensive documentation available in the `docs/` folder:
 ### Development
 - [DEVELOPMENT.md](DEVELOPMENT.md) - Development setup and guidelines
 - [CHANGELOG.md](CHANGELOG.md) - Version history (v0.1.0 - v0.3.0-alpha)
-- [TODO.md](docs/TODO.md) - Development roadmap
 
 ## 🤝 Contributing
 
