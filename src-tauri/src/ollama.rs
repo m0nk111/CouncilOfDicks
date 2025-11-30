@@ -1,4 +1,7 @@
+use crate::config::AppConfig;
+use crate::logger::Logger;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaRequest {
@@ -10,6 +13,22 @@ pub struct OllamaRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaResponse {
     pub response: String,
+}
+
+/// Ollama client for making API requests
+pub struct OllamaClient {
+    config: AppConfig,
+    logger: Arc<Logger>,
+}
+
+impl OllamaClient {
+    pub fn new(config: AppConfig, logger: Arc<Logger>) -> Self {
+        Self { config, logger }
+    }
+    
+    pub async fn ask(&self, model: &str, prompt: &str) -> Result<String, String> {
+        ask_ollama(&self.config.ollama_url, model, prompt.to_string()).await
+    }
 }
 
 pub async fn ask_ollama(url: &str, model: &str, prompt: String) -> Result<String, String> {

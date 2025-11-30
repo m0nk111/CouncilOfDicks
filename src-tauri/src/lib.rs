@@ -1,8 +1,10 @@
 mod config;
 mod council;
 mod crypto;
+mod deliberation;
 mod mcp;
 mod ollama;
+mod personalities;
 mod state;
 mod logger;
 mod metrics;
@@ -258,6 +260,80 @@ async fn mcp_status(state: tauri::State<'_, AppState>) -> Result<bool, String> {
     Ok(state.mcp_server.is_running().await)
 }
 
+// Deliberation commands
+#[tauri::command]
+async fn start_deliberation(
+    question: String,
+    member_count: usize,
+    max_rounds: usize,
+    state: tauri::State<'_, AppState>,
+) -> Result<deliberation::DeliberationResult, String> {
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    
+    state.log_info("start_deliberation", &format!("Starting deliberation with {} members, max {} rounds", member_count, max_rounds));
+    
+    // Create deliberation engine
+    let config = state.get_config();
+    let ollama_client = Arc::new(Mutex::new(ollama::OllamaClient::new(
+        config.clone(),
+        state.logger.clone(),
+    )));
+    
+    let engine = deliberation::DeliberationEngine::new(
+        state.logger.clone(),
+        ollama_client,
+    );
+    
+    // Create council members with personalities
+    let members = personalities::create_council_members(&config.ollama_model, member_count);
+    
+    state.log_debug("start_deliberation", &format!("Council members: {:?}", 
+        members.iter().map(|m| &m.name).collect::<Vec<_>>()));
+    
+    // Start deliberation
+    let result = engine.start_deliberation(question, members, max_rounds).await;
+    
+    match &result {
+        Ok(res) => state.log_success("start_deliberation", 
+            &format!("Completed {} rounds, consensus: {}", res.rounds.len(), res.consensus.is_some())),
+        Err(e) => state.log_error("start_deliberation", &format!("Failed: {}", e)),
+    }
+    
+    result
+}
+
+#[tauri::command]
+async fn get_personalities() -> Result<Vec<personalities::Personality>, String> {
+    Ok(personalities::get_default_personalities())
+}
+
+#[tauri::command]
+async fn create_custom_council(
+    model_name: String,
+    personality_names: Vec<String>,
+) -> Result<Vec<deliberation::CouncilMember>, String> {
+    let personalities = personalities::get_default_personalities();
+    let mut members = Vec::new();
+    
+    for name in personality_names {
+        if let Some(personality) = personalities.iter().find(|p| p.name == name) {
+            members.push(deliberation::CouncilMember {
+                name: personality.name.clone(),
+                model: model_name.clone(),
+                personality: personality.name.clone(),
+                system_prompt: personality.system_prompt.clone(),
+            });
+        }
+    }
+    
+    if members.is_empty() {
+        return Err("No valid personalities found".to_string());
+    }
+    
+    Ok(members)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
@@ -286,7 +362,10 @@ pub fn run() {
         get_key_fingerprint,
         mcp_start,
         mcp_stop,
-        mcp_status
+        mcp_status,
+        start_deliberation,
+        get_personalities,
+        create_custom_council
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {
