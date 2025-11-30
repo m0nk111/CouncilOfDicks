@@ -1,22 +1,32 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { askCouncil, getConfig, setDebug, type AppConfig } from "./api";
+  import { askCouncil, getConfig, setDebug, getMetrics, type AppConfig, type PerformanceMetrics } from "./api";
 
   let question = "";
   let response = "";
   let loading = false;
   let config: AppConfig | null = null;
   let debugEnabled = true;
+  let metrics: PerformanceMetrics | null = null;
 
   onMount(async () => {
     try {
       config = await getConfig();
       debugEnabled = config.debug_enabled;
       console.log("🔧 Config loaded:", config);
+      await loadMetrics();
     } catch (error) {
       console.error("❌ Failed to load config:", error);
     }
   });
+
+  async function loadMetrics() {
+    try {
+      metrics = await getMetrics();
+    } catch (error) {
+      console.error("❌ Failed to load metrics:", error);
+    }
+  }
 
   async function handleAskCouncil() {
     if (!question.trim()) return;
@@ -27,6 +37,7 @@
     try {
       const result = await askCouncil(question);
       response = result;
+      await loadMetrics(); // Refresh metrics after request
     } catch (error) {
       response = `Error: ${error}`;
       console.error("❌ Ask failed:", error);
@@ -97,6 +108,34 @@
       </div>
     {/if}
   </div>
+
+  {#if metrics}
+    <div class="metrics-panel">
+      <h3>📊 Performance Metrics</h3>
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-label">Total Requests:</span>
+          <span class="metric-value">{metrics.total_requests}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Success Rate:</span>
+          <span class="metric-value success">
+            {metrics.total_requests > 0 
+              ? ((metrics.successful_requests / metrics.total_requests) * 100).toFixed(1)
+              : 0}%
+          </span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Failed:</span>
+          <span class="metric-value error">{metrics.failed_requests}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Avg Response Time:</span>
+          <span class="metric-value">{metrics.average_response_time_ms.toFixed(0)}ms</span>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <footer>
     <p>
@@ -296,5 +335,51 @@
   .version {
     font-size: 12px;
     color: #555;
+  }
+
+  .metrics-panel {
+    background: #1a1a1a;
+    border: 2px solid #00ff88;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 24px auto;
+    max-width: 800px;
+  }
+
+  .metrics-panel h3 {
+    color: #00ff88;
+    margin: 0 0 16px 0;
+    font-size: 18px;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .metric-label {
+    color: #888;
+    font-size: 13px;
+  }
+
+  .metric-value {
+    color: #e0e0e0;
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .metric-value.success {
+    color: #00ff88;
+  }
+
+  .metric-value.error {
+    color: #ff4444;
   }
 </style>
