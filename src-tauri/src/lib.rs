@@ -1,3 +1,4 @@
+mod chat;
 mod config;
 mod council;
 mod crypto;
@@ -399,6 +400,86 @@ async fn kb_list_all(
     }
 }
 
+// Chat commands
+#[tauri::command]
+fn chat_send_message(
+    channel: String,
+    author: String,
+    author_type: String,
+    content: String,
+    signature: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    use chat::{AuthorType, ChannelType, Message};
+
+    let channel_type = ChannelType::from_str(&channel)
+        .ok_or_else(|| format!("Invalid channel: {}", channel))?;
+
+    let author_type = match author_type.as_str() {
+        "human" => AuthorType::Human,
+        "ai" => AuthorType::AI,
+        "system" => AuthorType::System,
+        _ => return Err(format!("Invalid author type: {}", author_type)),
+    };
+
+    let mut message = Message::new(channel_type, author, author_type, content);
+
+    if let Some(sig) = signature {
+        message = message.with_signature(sig);
+    }
+
+    state.log_debug(
+        "chat",
+        &format!("Sending message to #{}: {}", channel, message.id),
+    );
+
+    state.channel_manager.send_message(message)
+}
+
+#[tauri::command]
+fn chat_get_messages(
+    channel: String,
+    limit: usize,
+    offset: usize,
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<chat::Message>, String> {
+    use chat::ChannelType;
+
+    let channel_type = ChannelType::from_str(&channel)
+        .ok_or_else(|| format!("Invalid channel: {}", channel))?;
+
+    state.channel_manager.get_messages(channel_type, limit, offset)
+}
+
+#[tauri::command]
+fn chat_add_reaction(
+    channel: String,
+    message_id: String,
+    emoji: String,
+    author: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    use chat::ChannelType;
+
+    let channel_type = ChannelType::from_str(&channel)
+        .ok_or_else(|| format!("Invalid channel: {}", channel))?;
+
+    state.channel_manager.add_reaction(channel_type, &message_id, emoji, author)
+}
+
+#[tauri::command]
+fn chat_get_message_count(
+    channel: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<usize, String> {
+    use chat::ChannelType;
+
+    let channel_type = ChannelType::from_str(&channel)
+        .ok_or_else(|| format!("Invalid channel: {}", channel))?;
+
+    state.channel_manager.message_count(channel_type)
+}
+
 // Provider management commands
 #[tauri::command]
 async fn provider_add(
@@ -570,7 +651,11 @@ pub fn run() {
         provider_remove,
         provider_test_connection,
         provider_set_default,
-        provider_generate_username
+        provider_generate_username,
+        chat_send_message,
+        chat_get_messages,
+        chat_add_reaction,
+        chat_get_message_count
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

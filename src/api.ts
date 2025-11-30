@@ -20,6 +20,28 @@ export interface NetworkStatus {
   port: number;
 }
 
+// Chat types
+export type ChannelType = "general" | "human" | "knowledge" | "vote";
+export type AuthorType = "human" | "ai" | "system";
+
+export interface Reaction {
+  emoji: string;
+  author: string;
+  timestamp: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  channel: ChannelType;
+  author: string;
+  author_type: AuthorType;
+  content: string;
+  timestamp: string;
+  signature?: string;
+  reply_to?: string;
+  reactions: Reaction[];
+}
+
 export async function askCouncil(question: string): Promise<string> {
   return await invoke("ask_ollama", { question });
 }
@@ -175,6 +197,51 @@ export interface ProviderHealth {
   healthy: boolean;
   latency_ms?: number;
   error?: string;
+}
+
+// Chat commands
+export async function chatSendMessage(
+  channel: ChannelType,
+  author: string,
+  authorType: AuthorType,
+  content: string,
+  signature?: string
+): Promise<string> {
+  return await invoke("chat_send_message", {
+    channel,
+    author,
+    authorType,
+    content,
+    signature,
+  });
+}
+
+export async function chatGetMessages(
+  channel: ChannelType,
+  limit: number = 50,
+  offset: number = 0
+): Promise<ChatMessage[]> {
+  return await invoke("chat_get_messages", { channel, limit, offset });
+}
+
+export async function chatAddReaction(
+  channel: ChannelType,
+  messageId: string,
+  emoji: string,
+  author: string
+): Promise<void> {
+  return await invoke("chat_add_reaction", {
+    channel,
+    messageId,
+    emoji,
+    author,
+  });
+}
+
+export async function chatGetMessageCount(
+  channel: ChannelType
+): Promise<number> {
+  return await invoke("chat_get_message_count", { channel });
 }
 
 // Provider management commands

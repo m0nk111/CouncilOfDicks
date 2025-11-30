@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use crate::chat::ChannelManager;
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub mcp_server: Arc<McpServer>,
     pub signing_identity: Arc<SigningIdentity>,
     pub knowledge_bank: Option<Arc<KnowledgeBank>>,
+    pub channel_manager: Arc<ChannelManager>,
 }
 
 impl AppState {
@@ -75,6 +77,15 @@ impl AppState {
                 }
             });
 
+        // Initialize channel manager
+        let channel_manager = Arc::new(ChannelManager::new());
+        
+        // Send welcome message to #general
+        let _ = channel_manager.send_system_message(
+            crate::chat::ChannelType::General,
+            "🤖 Welcome to Council Of Dicks! Type /help for commands.".to_string(),
+        );
+
         Self {
             config: Arc::new(Mutex::new(AppConfig::default())),
             logger: logger.clone(),
@@ -84,6 +95,7 @@ impl AppState {
             mcp_server,
             signing_identity,
             knowledge_bank: kb,
+            channel_manager,
         }
     }
 
