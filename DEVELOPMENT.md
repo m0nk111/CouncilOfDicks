@@ -55,26 +55,48 @@ cd TheCouncelOfDicks
 pnpm install
 ```
 
-### 3. Development Workflow
+### 3. Configure Ollama Connection
+
+The app connects to Ollama at `http://192.168.1.5:11434` by default.
+
+**Test connection:**
+```bash
+pnpm test:ollama
+# or
+./scripts/test-ollama.sh
+```
+
+**Expected output:**
+```
+✅ NR5 IS ALIVE!
+📋 Available models:
+qwen2.5-coder:7b
+...
+```
+
+### 4. Development Workflow
 
 ```bash
-# Run in dev mode (hot reload enabled)
+# Quick start with Ollama check
+pnpm tauri:dev
+# or
+./scripts/dev.sh
+
+# Standard dev mode
 pnpm tauri dev
 
 # Run Rust tests
 cargo test --manifest-path=src-tauri/Cargo.toml
 
-# Run frontend tests
-pnpm test
-
 # Format code
 cargo fmt --manifest-path=src-tauri/Cargo.toml
-pnpm format
 
 # Lint
 cargo clippy --manifest-path=src-tauri/Cargo.toml
-pnpm lint
 ```
+
+**Dev server:** http://localhost:5174  
+**Hot reload:** Enabled for both Rust and frontend
 
 ## Project Architecture
 

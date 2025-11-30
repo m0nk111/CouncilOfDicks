@@ -1,62 +1,52 @@
-use serde::{Deserialize, Serialize};
+mod config;
+mod ollama;
+mod state;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaRequest {
-    model: String,
-    prompt: String,
-    stream: bool,
-}
+use config::AppConfig;
+use state::AppState;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaResponse {
-    response: String,
+// Tauri commands
+#[tauri::command]
+async fn ask_ollama(
+    question: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let config = state.get_config();
+    
+    if config.debug_enabled {
+        println!("🐛 [DEBUG] Received question: {}", question);
+    }
+
+    ollama::ask_ollama(&config.ollama_url, &config.ollama_model, question).await
 }
 
 #[tauri::command]
-async fn ask_ollama(question: String) -> Result<String, String> {
-    println!("🐛 [DEBUG] Received question: {}", question);
-    
-    let ollama_url = "http://192.168.1.5:11434/api/generate";
-    let request_body = OllamaRequest {
-        model: "qwen2.5-coder:7b".to_string(),
-        prompt: question.clone(),
-        stream: false,
-    };
+fn get_config(state: tauri::State<'_, AppState>) -> AppConfig {
+    state.get_config()
+}
 
-    println!("🐛 [DEBUG] Sending request to NR5 (192.168.1.5:11434)...");
-
-    let client = reqwest::Client::new();
-    let response = client
-        .post(ollama_url)
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| {
-            let error_msg = format!("Failed to connect to Ollama: {}", e);
-            println!("❌ [ERROR] {}", error_msg);
-            error_msg
-        })?;
-
-    println!("✅ [DEBUG] Got response from NR5!");
-
-    let ollama_response: OllamaResponse = response
-        .json()
-        .await
-        .map_err(|e| {
-            let error_msg = format!("Failed to parse Ollama response: {}", e);
-            println!("❌ [ERROR] {}", error_msg);
-            error_msg
-        })?;
-
-    println!("🎉 [DEBUG] Response parsed successfully!");
-    Ok(ollama_response.response)
+#[tauri::command]
+fn set_debug(enabled: bool, state: tauri::State<'_, AppState>) {
+    state.update_config(|config| {
+        config.debug_enabled = enabled;
+        println!("🔧 [CONFIG] Debug mode: {}", if enabled { "ON" } else { "OFF" });
+    });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // Initialize app state
+  let config = AppConfig::default();
+  let state = AppState::new(config.clone());
+
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
-    .invoke_handler(tauri::generate_handler![ask_ollama])
+    .manage(state)
+    .invoke_handler(tauri::generate_handler![
+        ask_ollama,
+        get_config,
+        set_debug
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -65,8 +55,16 @@ pub fn run() {
             .build(),
         )?;
       }
-      println!("✅ Council Of Dicks initialized!");
-      println!("🔥 NR5 IS ALIVE at 192.168.1.5:11434");
+      
+      println!("╔════════════════════════════════════════╗");
+      println!("║   Council Of Dicks - MVP Foundation    ║");
+      println!("╚════════════════════════════════════════╝");
+      println!("✅ App initialized");
+      println!("🔥 NR5 IS ALIVE at {}", config.ollama_url);
+      println!("🤖 Model: {}", config.ollama_model);
+      println!("🐛 Debug mode: {}", if config.debug_enabled { "ON" } else { "OFF" });
+      println!("\n🚀 And awaaaay we go!\n");
+      
       Ok(())
     })
     .run(tauri::generate_context!())
