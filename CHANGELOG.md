@@ -8,41 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### In Progress
-- Frontend dual-mode support (Tauri invoke vs fetch)
-- WebSocket real-time chat (replace 5-second polling)
-- Docker container for self-hosted deployment
-- CORS & authentication configuration
+- CORS configuration for production (headers, origins whitelist)
+- API key authentication & JWT token support
+- Frontend production build (Svelte dist/ in Docker)
+- DDoS protection (circuit breakers, proof-of-work, IP whitelisting)
 
 ---
 
-## [0.6.0-alpha] - 2025-11-30
+## [0.6.0-alpha] - 2025-11-30 ✅ COMPLETE
 
-### Added - Hybrid Web+Native Architecture
+### Added - Hybrid Web+Native Architecture (Complete)
 - **HTTP REST API**: Axum 0.7 server on port 8080 for browser access
   - Health check: `GET /health`
   - Config: `GET /api/config` (ollama_url, model, debug)
   - Ollama: `POST /api/ollama/ask` (prompt → response)
+  - Chat: `POST /api/chat/send`, `GET /api/chat/messages`
   - Placeholder homepage with API documentation
-- **Dual Deployment Modes**:
-  - Native app (default): `./app` → Tauri GUI with WebView
-  - HTTP server: `./app --server` → web browser access
+- **Frontend Dual-Mode Support**:
+  - `src/api-adapter.ts`: Environment detection (Tauri vs browser)
+  - `apiCall<T>()`: Unified wrapper (routes to invoke() or fetch())
+  - Automatic API base URL detection (localhost:8080 or origin)
+  - `test-web-mode.html`: Interactive test page (health, config, Ollama)
+- **WebSocket Real-Time Chat**:
+  - Endpoint: `ws://localhost:8080/ws/chat`
+  - tokio::sync::broadcast channel (capacity: 100 messages)
+  - Per-client handler with welcome message + message forwarding
+  - `test-websocket.html`: Dark theme test client with auto-scroll
+  - Replaces 5-second HTTP polling (now instant push)
+- **Docker Deployment** (Production-Ready):
+  - Multi-stage Dockerfile (rust-builder + debian:bookworm-slim runtime)
+  - docker-compose.yml (council + ollama services)
+  - Persistent volumes (council-data, ollama-data)
+  - Health checks for both services (startup, interval, timeout)
+  - Non-root user (council:1000) for security
+  - .dockerignore for optimized build context (excludes target/, docs/)
+  - docs/DOCKER.md (250+ lines): deployment guide, config, troubleshooting, production, backup/restore
+- **Three Deployment Options**:
+  1. Native app: `./app` (23MB, desktop, offline)
+  2. HTTP server: `./app --server` (browser, instant access)
+  3. Docker: `docker-compose up -d` (one-command, bundled Ollama)
 - **CLI Argument Parsing**: Detects `--server`, `serve`, or `--serve` flags
 - **CORS Support**: tower-http 0.6 with Any origin (development-friendly)
 - **Helper Functions**:
   - `ask_ollama_internal()`: Takes &AppState instead of Tauri State
   - `verify_signature_internal()`: Simplified bool return for HTTP
-- **Dependencies**: axum 0.7, tower 0.5, tower-http 0.6, hyper 1.0
+- **Dependencies**: axum 0.7, tower 0.5, tower-http 0.6, hyper 1.0, axum-extra 0.9 (WebSocket)
 
 ### Changed
-- **AppState.knowledge_bank**: Temporarily None (async init issue, will fix)
-- **lib.rs**: Added `run_server()` async function for HTTP-only mode
+- **AppState**: Added `websocket_broadcast: Arc<broadcast::Sender<Message>>`
+- **http_server.rs**: Added WebSocket route + handlers (websocket_handler, websocket_connection)
+- **lib.rs chat_send_message**: Broadcasts messages to WebSocket clients after successful send
+- **README.md**: Comprehensive deployment options section with best-use cases
 - **main.rs**: Now `#[tokio::main] async fn main()` to support both modes
 
 ### Technical Details
-- Port allocation: 8080 (HTTP API), 9001 (MCP server), 11434 (Ollama external)
+- Port allocation: 8080 (HTTP/WS), 9001 (MCP server), 11434 (Ollama external)
 - HTTP server uses Arc<AppState> shared with Tauri commands
-- MVP version: 3 endpoints, 227 lines of code
+- WebSocket: JSON messages (welcome + chat), graceful disconnect handling
+- Docker: ~73MB base + binary, GPU support ready (commented), health checks every 30s
 - Architecture decision: User requirement "bijna elk apparaat heeft een webbrowser, waardoor acceptatie veel hoger is"
+- Session commits: 6 commits (b5171af → 59f470f → 74695e0 → 56baa55 → c8451da → d1a3c0b)
 
 ---
 
