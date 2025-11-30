@@ -1,6 +1,6 @@
 # Council Of Dicks (TCOD)
 
-![Version](https://img.shields.io/badge/version-0.4.0--alpha-orange)
+![Version](https://img.shields.io/badge/version-0.5.0--alpha-orange)
 ![Status](https://img.shields.io/badge/status-alpha-yellow)
 ![License](https://img.shields.io/badge/license-Custom-blue)
 
@@ -8,23 +8,27 @@
 
 A **decentralized P2P network** where multiple AI models deliberate until they reach consensus. Every client is also a server node (Tor-like architecture), creating a truly distributed AI democracy that serves humanity.
 
-## 🚀 Current Status (v0.4.0-alpha)
+## 🚀 Current Status (v0.5.0-alpha)
 
 ✅ **Implemented:**
 - Tauri 2.0 cross-platform application (Rust + Svelte 5)
+- **Chat-based UI** (4 channels: #general, #human, #knowledge, #vote)
+- **Rate limiting & spam detection** (2/min, 10/hour, 50/day + pattern recognition)
+- **Duplicate question filter** (semantic similarity with 0.85 threshold)
 - Ollama AI integration (local + network)
 - P2P networking foundation (libp2p with gossipsub, mDNS, Kademlia DHT)
 - Council deliberation system (multi-round voting + blind voting + consensus)
-- **Multi-model deliberation engine** (parallel querying, context building, consensus detection)
-- **AI personality system** (7 archetypes: Pragmatist, Systems Thinker, Skeptic, Ethicist, Realist, Innovator, Mediator)
-- **Knowledge Bank with RAG** (Ollama embeddings, semantic search, cosine similarity, SQLite storage)
+- Multi-model deliberation engine (parallel querying, context building, consensus detection)
+- AI personality system (7 archetypes: Pragmatist, Systems Thinker, Skeptic, Ethicist, Realist, Innovator, Mediator)
+- Knowledge Bank with RAG (Ollama embeddings, semantic search, cosine similarity, SQLite storage)
 - Ed25519 cryptographic signatures (response authentication)
 - MCP server integration (JSON-RPC 2.0 on port 9001)
 - Comprehensive logging & metrics (debug mode + performance tracking)
-- 47 backend tests passing
+- **97 backend tests passing**
 
 ⏳ **In Development:**
-- Council UI panel (frontend integration)
+- DDoS protection (circuit breakers, proof-of-work)
+- Chat commands (/ask, /search, /session)
 - Proof of Human Value (PoHV) safety mechanisms
 - Reputation/ranking system (5-tier meritocracy)
 - Distributed knowledge bank (IPFS integration)
@@ -50,8 +54,12 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 7. **P2P distribution** - every node contributes to network resilience
 8. **Build knowledge** - sessions preserved for future reference (eternal council)
 
-### Current Capabilities (v0.4.0-alpha)
+### Current Capabilities (v0.5.0-alpha)
 
+✅ **Chat interface** - 4 channels (#general, #human, #knowledge, #vote) with auto-reload  
+✅ **Rate limiting** - 2 questions/min, 10/hour, 50/day with exponential backoff  
+✅ **Spam detection** - Pattern recognition (duplicates, rapid-fire, ALL CAPS, spam keywords)  
+✅ **Duplicate filter** - Semantic similarity check (0.85 threshold) prevents re-asking same questions  
 ✅ **Multi-model deliberation** - Parallel AI querying with context building between rounds  
 ✅ **AI personality system** - 7 archetypes for diverse perspectives (Pragmatist, Skeptic, Ethicist, etc.)  
 ✅ **Knowledge Bank with RAG** - Semantic search with Ollama embeddings, inject past decisions into context  
@@ -61,7 +69,7 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 ✅ **Sign responses** - Cryptographic proof of response integrity  
 ✅ **MCP integration** - External AI agents can use council as a tool  
 ✅ **Performance metrics** - Track request times, rolling averages  
-⏳ **Council UI** - Frontend interface for session management (in dev)  
+⏳ **Chat commands** - /ask, /search, /session (in dev)  
 ⏳ **Distributed KB** - IPFS integration for decentralized knowledge (planned)
 
 ## 🏗️ Architecture
@@ -155,32 +163,69 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 
 ## 🚀 Getting Started
 
+### Quick Install (Production Builds)
+
+**Linux:**
+
+```bash
+# Debian/Ubuntu (.deb)
+wget https://github.com/m0nk111/CouncilOfDicks/releases/latest/download/council-of-dicks_0.5.0_amd64.deb
+sudo dpkg -i council-of-dicks_0.5.0_amd64.deb
+
+# Fedora/RHEL (.rpm)
+wget https://github.com/m0nk111/CouncilOfDicks/releases/latest/download/council-of-dicks-0.5.0-1.x86_64.rpm
+sudo rpm -i council-of-dicks-0.5.0-1.x86_64.rpm
+
+# AppImage (any distro)
+wget https://github.com/m0nk111/CouncilOfDicks/releases/latest/download/council-of-dicks_0.5.0_amd64.AppImage
+chmod +x council-of-dicks_0.5.0_amd64.AppImage
+./council-of-dicks_0.5.0_amd64.AppImage
+```
+
+**Executable Size:** 23MB (includes all dependencies except Ollama)
+
 ### Prerequisites
 
+- **Ollama** (required): `https://ollama.ai/` - Install and run AI models locally
+- **Linux**: GTK3, webkit2gtk (usually pre-installed on desktop distros)
+- **Windows**: WebView2 (auto-installed by Tauri)
+- **macOS**: No additional dependencies
+
+**Recommended:** Pull at least one model in Ollama before starting:
+```bash
+ollama pull qwen2.5-coder:7b  # Default model (3.8GB)
+# Or smaller models:
+ollama pull llama3.2:3b       # 2GB
+ollama pull qwen2.5:3b        # 2.3GB
+```
+
+### Development Setup
+
+**Prerequisites:**
 - **Rust** (latest stable): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Node.js** (v20+): `https://nodejs.org/`
 - **pnpm**: `npm install -g pnpm`
-- **Ollama**: `https://ollama.ai/` (for AI model hosting)
-
-### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/TheCouncelOfDicks.git
-cd TheCouncelOfDicks
+git clone https://github.com/m0nk111/CouncilOfDicks.git
+cd CouncilOfDicks
 
 # Install dependencies
 pnpm install
 
-# Run in development mode
+# Run in development mode (with hot reload)
 pnpm tauri dev
 
-# Run tests
-cargo test --manifest-path=src-tauri/Cargo.toml
-pnpm test
+# Run tests (97 passing)
+cd src-tauri && cargo test --lib
 
 # Build for production
 pnpm tauri build
+# Output: src-tauri/target/release/bundle/
+#   - deb/council-of-dicks_0.5.0_amd64.deb
+#   - rpm/council-of-dicks-0.5.0-1.x86_64.rpm
+#   - appimage/council-of-dicks_0.5.0_amd64.AppImage
 ```
 
 ### Configuration

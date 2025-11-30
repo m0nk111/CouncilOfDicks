@@ -1,6 +1,6 @@
 {
   "name": "council-of-dicks",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Decentralized P2P network for AI consensus deliberation",
   "type": "module",
   "scripts": {
