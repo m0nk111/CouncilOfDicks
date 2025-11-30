@@ -1,4 +1,5 @@
 mod config;
+mod council;
 mod ollama;
 mod state;
 mod logger;
@@ -103,11 +104,80 @@ async fn p2p_status(state: tauri::State<'_, AppState>) -> Result<p2p_manager::Ne
     Ok(state.p2p_manager.status().await)
 }
 
+// Council session commands
+#[tauri::command]
+async fn council_create_session(state: tauri::State<'_, AppState>, question: String) -> Result<String, String> {
+    state.log_info("council_create_session", &format!("Creating session: {}", question));
+    let session_id = state.council_manager.create_session(question).await;
+    state.log_success("council_create_session", &format!("Session created: {}", session_id));
+    Ok(session_id)
+}
+
+#[tauri::command]
+async fn council_get_session(state: tauri::State<'_, AppState>, session_id: String) -> Result<protocol::CouncilSession, String> {
+    state.log_debug("council_get_session", &format!("Fetching session: {}", session_id));
+    state.council_manager
+        .get_session(&session_id)
+        .await
+        .ok_or_else(|| "Session not found".to_string())
+}
+
+#[tauri::command]
+async fn council_list_sessions(state: tauri::State<'_, AppState>) -> Result<Vec<protocol::CouncilSession>, String> {
+    state.log_debug("council_list_sessions", "Listing all sessions");
+    Ok(state.council_manager.list_sessions().await)
+}
+
+#[tauri::command]
+async fn council_add_response(
+    state: tauri::State<'_, AppState>,
+    session_id: String,
+    model_name: String,
+    response: String,
+    peer_id: String,
+) -> Result<String, String> {
+    state.log_debug("council_add_response", &format!("Adding response from {} to session {}", model_name, session_id));
+    
+    state.council_manager
+        .add_response(&session_id, model_name, response, peer_id)
+        .await?;
+    
+    Ok("Response added".to_string())
+}
+
+#[tauri::command]
+async fn council_start_voting(state: tauri::State<'_, AppState>, session_id: String) -> Result<String, String> {
+    state.log_info("council_start_voting", &format!("Starting voting phase for session {}", session_id));
+    
+    state.council_manager
+        .start_commitment_phase(&session_id)
+        .await?;
+    
+    Ok("Voting phase started".to_string())
+}
+
+#[tauri::command]
+async fn council_calculate_consensus(state: tauri::State<'_, AppState>, session_id: String) -> Result<Option<String>, String> {
+    state.log_info("council_calculate_consensus", &format!("Calculating consensus for session {}", session_id));
+    
+    let consensus = state.council_manager
+        .calculate_consensus(&session_id)
+        .await?;
+    
+    if let Some(ref result) = consensus {
+        state.log_success("council_calculate_consensus", &format!("Consensus reached: {}", result));
+    } else {
+        state.log_info("council_calculate_consensus", "No consensus reached");
+    }
+    
+    Ok(consensus)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
-  let config = AppConfig::default();
-  let state = AppState::new(config.clone());
+  let state = AppState::new();
+  let config = state.get_config();
 
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
@@ -119,7 +189,13 @@ pub fn run() {
         get_metrics,
         p2p_start,
         p2p_stop,
-        p2p_status
+        p2p_status,
+        council_create_session,
+        council_get_session,
+        council_list_sessions,
+        council_add_response,
+        council_start_voting,
+        council_calculate_consensus
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

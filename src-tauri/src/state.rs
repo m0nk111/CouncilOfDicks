@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use crate::config::AppConfig;
+use crate::council::CouncilSessionManager;
 use crate::logger::Logger;
 use crate::metrics::MetricsCollector;
 use crate::p2p_manager::P2PManager;
@@ -10,19 +11,18 @@ pub struct AppState {
     pub logger: Arc<Logger>,
     pub metrics: Arc<Mutex<MetricsCollector>>,
     pub p2p_manager: Arc<P2PManager>,
+    pub council_manager: Arc<CouncilSessionManager>,
 }
 
 impl AppState {
-    pub fn new(config: AppConfig) -> Self {
-        let logger = Arc::new(Logger::new(config.debug_enabled));
-        let metrics = Arc::new(Mutex::new(MetricsCollector::new()));
-        let p2p_manager = Arc::new(P2PManager::new(9000)); // Default P2P port
-
+    pub fn new() -> Self {
+        let logger = Arc::new(Logger::new(false)); // Debug disabled by default
         Self {
-            config: Arc::new(Mutex::new(config)),
+            config: Arc::new(Mutex::new(AppConfig::new())),
             logger,
-            metrics,
-            p2p_manager,
+            metrics: Arc::new(Mutex::new(MetricsCollector::new())),
+            p2p_manager: Arc::new(P2PManager::new(9000)),
+            council_manager: Arc::new(CouncilSessionManager::new()),
         }
     }
 

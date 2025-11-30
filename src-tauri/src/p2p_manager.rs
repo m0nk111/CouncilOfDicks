@@ -5,7 +5,6 @@ use crate::p2p::P2PNetwork;
 use crate::protocol::CouncilMessage;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use std::error::Error;
 
 /// P2P Network manager state
 pub struct P2PManager {

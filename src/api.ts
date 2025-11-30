@@ -47,3 +47,74 @@ export async function p2pStop(): Promise<string> {
 export async function p2pStatus(): Promise<NetworkStatus> {
   return await invoke("p2p_status");
 }
+
+// Council session types
+export interface CouncilResponse {
+  model_name: string;
+  response: string;
+  peer_id: string;
+  timestamp: number;
+}
+
+export interface VoteCommitment {
+  commitment_hash: string;
+  voter_peer_id: string;
+}
+
+export interface VoteReveal {
+  vote: string;
+  salt: string;
+  voter_peer_id: string;
+}
+
+export type SessionStatus = 
+  | "GatheringResponses"
+  | "CommitmentPhase"
+  | "RevealPhase"
+  | "ConsensusReached";
+
+export interface CouncilSession {
+  id: string;
+  question: string;
+  responses: CouncilResponse[];
+  commitments: VoteCommitment[];
+  reveals: VoteReveal[];
+  consensus: string | null;
+  status: SessionStatus;
+  created_at: number;
+}
+
+// Council session commands
+export async function councilCreateSession(question: string): Promise<string> {
+  return await invoke("council_create_session", { question });
+}
+
+export async function councilGetSession(sessionId: string): Promise<CouncilSession> {
+  return await invoke("council_get_session", { sessionId });
+}
+
+export async function councilListSessions(): Promise<CouncilSession[]> {
+  return await invoke("council_list_sessions");
+}
+
+export async function councilAddResponse(
+  sessionId: string,
+  modelName: string,
+  response: string,
+  peerId: string
+): Promise<string> {
+  return await invoke("council_add_response", {
+    sessionId,
+    modelName,
+    response,
+    peerId,
+  });
+}
+
+export async function councilStartVoting(sessionId: string): Promise<string> {
+  return await invoke("council_start_voting", { sessionId });
+}
+
+export async function councilCalculateConsensus(sessionId: string): Promise<string | null> {
+  return await invoke("council_calculate_consensus", { sessionId });
+}
