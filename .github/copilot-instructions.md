@@ -162,6 +162,36 @@ export async function startCouncil(question: string): Promise<string> {
 - Knowledge bank search: < 1 second
 - UI response time: < 100ms
 
+## Development Workflow
+
+### GitHub Issue-Driven Development
+
+**After MVP/Foundation is complete, we use GitHub Issues + Copilot Agents for parallel development:**
+
+1. **Issue Creation**: Break features into specific, actionable GitHub issues
+2. **Agent Assignment**: Assign issues to GitHub Copilot agents (via `@github-copilot-agent` mention)
+3. **Parallel Work**: Multiple agents work simultaneously on independent issues
+4. **Pull Requests**: Agents create PRs with implementations
+5. **Review & Merge**: Human reviews PRs, provides feedback, merges when ready
+
+**Why This Approach:**
+- ✅ Parallel development (multiple features at once)
+- ✅ Clear task boundaries (one issue = one feature)
+- ✅ Automated PR creation (less manual work)
+- ✅ Version control discipline (all changes via PRs)
+- ✅ Collaboration visibility (everyone sees what's being worked on)
+
+**Workflow Rules:**
+- Create issues BEFORE starting implementation (unless it's a trivial fix)
+- Keep issues focused (one feature/bug per issue)
+- Link PRs to issues (use "Closes #123" in PR description)
+- Update issue status when starting work (self-assign + comment)
+- All code changes go through PRs (no direct commits to main after foundation)
+
+**Foundation Phase (Current):**
+- Direct commits allowed for MVP/basic structure
+- Once Tauri app + basic Ollama integration works → switch to issue-driven workflow
+
 ## What to Avoid
 
 - ❌ Centralized dependencies
@@ -170,6 +200,7 @@ export async function startCouncil(question: string): Promise<string> {
 - ❌ Blockchain/crypto gimmicks (unless truly needed)
 - ❌ Over-engineering early (start simple, iterate)
 - ❌ Breaking changes to the protocol without network consensus
+- ❌ Direct commits to main after foundation phase (use PRs)
 
 ## When Suggesting Code
 

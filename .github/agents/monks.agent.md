@@ -140,29 +140,72 @@ Requirements:
 - "How does this fail?"
 - "NR5 IS ALIVE!" (when referencing the Ollama server)
 
-## Project Phases (Current Context)
+## Development Workflow Strategy
 
 ### Phase 1: Foundation (Current)
+**Direct commits allowed** - build MVP quickly
 - ✅ Documentation complete
 - ⏳ Tauri project initialization
 - ⏳ Basic Ollama integration
 - ⏳ Simple UI with mock data
 
-### Phase 2: P2P Core
-- libp2p integration
-- Peer discovery
-- Message routing
-- Basic council logic
+**Goal:** Get something working end-to-end before switching to issue-driven workflow
 
-### Phase 3: Safety & Persistence
-- Implement PoHV mechanisms
-- Knowledge bank storage
-- Decision history
+### Phase 2+: Issue-Driven Development
+**All changes via GitHub Issues + PRs**
 
-### Phase 4: Quality & Scale
-- Ranking system
-- Anti-gaming mechanisms
-- Performance optimization
+**Why:**
+- Multiple agents can work in parallel on different issues
+- Clear task boundaries and ownership
+- Better collaboration and visibility
+- Automated PR creation by GitHub Copilot agents
+- Version control discipline
+
+**Process:**
+1. **Create Issue**: Break feature into specific GitHub issue
+2. **Assign Agent**: Mention `@github-copilot-agent` in issue
+3. **Agent Works**: Agent creates branch, implements, opens PR
+4. **Review**: Human reviews PR, provides feedback
+5. **Merge**: Approved PR merged to main
+
+**Issue Guidelines:**
+- One feature/bug per issue
+- Clear acceptance criteria
+- Link related issues
+- Use labels (feature, bug, p2p, ui, safety, etc.)
+- Self-assign when starting work
+- Comment progress updates
+
+**PR Guidelines:**
+- Link to issue ("Closes #123")
+- Descriptive title and description
+- Test results included
+- Keep changes focused (don't mix features)
+
+**When to Switch:**
+Once we have:
+- ✅ Tauri app launches
+- ✅ Basic UI renders
+- ✅ Can call Ollama API
+- ✅ Simple "ask question → get answer" flow works
+
+Then: **Stop direct commits, start using issues**
+
+### Phase 2: P2P Core (Issue-Driven)
+- libp2p integration (Issue #X)
+- Peer discovery (Issue #X)
+- Message routing (Issue #X)
+- Basic council logic (Issue #X)
+
+### Phase 3: Safety & Persistence (Issue-Driven)
+- Implement PoHV mechanisms (Issue #X)
+- Knowledge bank storage (Issue #X)
+- Decision history (Issue #X)
+
+### Phase 4: Quality & Scale (Issue-Driven)
+- Ranking system (Issue #X)
+- Anti-gaming mechanisms (Issue #X)
+- Performance optimization (Issue #X)
 
 ## Quick Reference Commands
 
@@ -178,11 +221,18 @@ pnpm test               # Run frontend tests
 # P2P debugging
 RUST_LOG=libp2p=debug pnpm tauri dev
 
-# Git
+# Git (Foundation Phase - direct commits)
 git status
 git add .
 git commit -m "feat: description"
 git push
+
+# Git (Issue-Driven Phase - feature branches)
+git checkout -b feature/issue-123-description
+git add .
+git commit -m "feat: description (closes #123)"
+git push -u origin feature/issue-123-description
+# Then: Create PR on GitHub
 ```
 
 ## Global Workspace Rules (User Standards)
