@@ -18,6 +18,7 @@ mod p2p_manager;
 mod tests;
 
 use config::AppConfig;
+use providers::AIProvider;
 use state::AppState;
 
 // Tauri commands
@@ -398,6 +399,136 @@ async fn kb_list_all(
     }
 }
 
+// Provider management commands
+#[tauri::command]
+async fn provider_add(
+    config: providers::config::ProviderConfig,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    state.log_info("provider_add", &format!("Adding provider: {}", config.username));
+    
+    // Validate config
+    providers::config::validate_provider_config(&config)?;
+    
+    // Load current config
+    let config_path = "providers.json";
+    let mut providers_config = providers::config::ProvidersConfig::load(config_path)
+        .unwrap_or_default();
+    
+    // Add/update provider
+    providers_config.upsert_provider(config.clone());
+    
+    // Save config
+    providers_config.save(config_path)?;
+    
+    state.log_success("provider_add", &format!("Added provider: {}", config.username));
+    Ok(config.id)
+}
+
+#[tauri::command]
+fn provider_list(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<providers::config::ProviderConfig>, String> {
+    state.log_info("provider_list", "Listing providers");
+    
+    let config_path = "providers.json";
+    let providers_config = providers::config::ProvidersConfig::load(config_path)
+        .unwrap_or_default();
+    
+    Ok(providers_config.providers)
+}
+
+#[tauri::command]
+fn provider_remove(
+    id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<bool, String> {
+    state.log_info("provider_remove", &format!("Removing provider: {}", id));
+    
+    let config_path = "providers.json";
+    let mut providers_config = providers::config::ProvidersConfig::load(config_path)
+        .unwrap_or_default();
+    
+    let removed = providers_config.remove_provider(&id);
+    
+    if removed {
+        providers_config.save(config_path)?;
+        state.log_success("provider_remove", &format!("Removed provider: {}", id));
+    }
+    
+    Ok(removed)
+}
+
+#[tauri::command]
+async fn provider_test_connection(
+    id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<providers::ProviderHealth, String> {
+    state.log_info("provider_test", &format!("Testing provider: {}", id));
+    
+    // Load config
+    let config_path = "providers.json";
+    let providers_config = providers::config::ProvidersConfig::load(config_path)
+        .unwrap_or_default();
+    
+    let provider_config = providers_config
+        .get_provider(&id)
+        .ok_or(format!("Provider '{}' not found", id))?;
+    
+    // Create provider instance and test
+    match &provider_config.config {
+        providers::config::ProviderSpecificConfig::Ollama { base_url, default_model, .. } => {
+            let provider = providers::OllamaProvider::new(
+                base_url.clone(),
+                default_model.clone(),
+                state.logger.clone(),
+            );
+            
+            let health = provider.health_check().await
+                .map_err(|e| format!("Health check failed: {}", e))?;
+            state.log_success("provider_test", &format!("Provider {} health: {:?}", id, health.healthy));
+            Ok(health)
+        }
+        _ => Err("Provider type not yet supported for testing".to_string()),
+    }
+}
+
+#[tauri::command]
+fn provider_set_default(
+    provider_id: String,
+    purpose: String, // "generation" or "embedding"
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    state.log_info("provider_set_default", &format!("Setting {} default to: {}", purpose, provider_id));
+    
+    let config_path = "providers.json";
+    let mut providers_config = providers::config::ProvidersConfig::load(config_path)
+        .unwrap_or_default();
+    
+    match purpose.as_str() {
+        "generation" => {
+            providers_config.default_generation_provider = Some(provider_id);
+        }
+        "embedding" => {
+            providers_config.default_embedding_provider = Some(provider_id);
+        }
+        _ => return Err(format!("Invalid purpose: {}", purpose)),
+    }
+    
+    providers_config.save(config_path)?;
+    state.log_success("provider_set_default", "Default provider updated");
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn provider_generate_username(
+    model_name: String,
+    provider_name: String,
+) -> Result<String, String> {
+    providers::config::generate_username_from_model(&model_name, &provider_name).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
@@ -433,7 +564,13 @@ pub fn run() {
         kb_store_deliberation,
         kb_search,
         kb_get_rag_context,
-        kb_list_all
+        kb_list_all,
+        provider_add,
+        provider_list,
+        provider_remove,
+        provider_test_connection,
+        provider_set_default,
+        provider_generate_username
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

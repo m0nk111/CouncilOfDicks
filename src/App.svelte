@@ -12,6 +12,7 @@
     type PerformanceMetrics,
     type NetworkStatus 
   } from "./api";
+  import ProvidersPanel from "./ProvidersPanel.svelte";
 
   let question = "";
   let response = "";
@@ -167,6 +168,9 @@
     </div>
   {/if}
 
+  <!-- Provider Management Panel -->
+  <ProvidersPanel />
+
   <div class="council-container">
     <div class="input-section">
       <textarea
@@ -179,7 +183,7 @@
             handleAskCouncil();
           }
         }}
-      />
+      ></textarea>
       <button on:click={handleAskCouncil} disabled={loading || !question.trim()}>
         {loading ? "🤔 Deliberating..." : "💬 Ask Council"}
       </button>

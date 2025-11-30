@@ -131,3 +131,73 @@ export async function mcpStop(): Promise<string> {
 export async function mcpStatus(): Promise<boolean> {
   return await invoke("mcp_status");
 }
+
+// Provider management types
+export type ProviderType = "ollama" | "openai" | "anthropic" | "localembeddings";
+
+export interface ProviderConfig {
+  id: string;
+  username: string;
+  display_name: string;
+  provider_type: ProviderType;
+  enabled: boolean;
+  priority: number;
+  config: ProviderSpecificConfig;
+}
+
+export type ProviderSpecificConfig =
+  | {
+      type: "Ollama";
+      base_url: string;
+      default_model: string;
+      embedding_model: string;
+      timeout_seconds: number;
+    }
+  | {
+      type: "OpenAI";
+      api_key: string;
+      base_url?: string;
+      organization?: string;
+      default_model: string;
+    }
+  | {
+      type: "Anthropic";
+      api_key: string;
+      default_model: string;
+      version: string;
+    }
+  | {
+      type: "LocalEmbeddings";
+      model_path?: string;
+    };
+
+export interface ProviderHealth {
+  healthy: boolean;
+  latency_ms?: number;
+  error?: string;
+}
+
+// Provider management commands
+export async function providerAdd(config: ProviderConfig): Promise<string> {
+  return await invoke("provider_add", { config });
+}
+
+export async function providerList(): Promise<ProviderConfig[]> {
+  return await invoke("provider_list");
+}
+
+export async function providerRemove(id: string): Promise<boolean> {
+  return await invoke("provider_remove", { id });
+}
+
+export async function providerTestConnection(id: string): Promise<ProviderHealth> {
+  return await invoke("provider_test_connection", { id });
+}
+
+export async function providerSetDefault(providerId: string, purpose: "generation" | "embedding"): Promise<void> {
+  return await invoke("provider_set_default", { providerId, purpose });
+}
+
+export async function providerGenerateUsername(modelName: string, providerName: string): Promise<string> {
+  return await invoke("provider_generate_username", { modelName, providerName });
+}
