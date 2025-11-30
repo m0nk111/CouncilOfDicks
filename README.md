@@ -1,16 +1,20 @@
 # Council Of Dicks (TCOD)
 
-![Version](https://img.shields.io/badge/version-0.5.0--alpha-orange)
+![Version](https://img.shields.io/badge/version-0.6.0--alpha-orange)
 ![Status](https://img.shields.io/badge/status-alpha-yellow)
 ![License](https://img.shields.io/badge/license-Custom-blue)
 
 > *"Democracy for AI - When one opinion isn't enough"*
 
-A **decentralized P2P network** where multiple AI models deliberate until they reach consensus. Every client is also a server node (Tor-like architecture), creating a truly distributed AI democracy that serves humanity.
+A **decentralized P2P network** where multiple AI models deliberate until they reach consensus. **Hybrid architecture**: use in browser (instant access) or install native app (power-user features). Every client is also a server node (Tor-like), creating a truly distributed AI democracy that serves humanity.
 
-## 🚀 Current Status (v0.5.0-alpha)
+## 🚀 Current Status (v0.6.0-alpha)
 
 ✅ **Implemented:**
+- **Hybrid Web+Native Architecture** (browser access OR native app)
+  - HTTP REST API (Axum 0.7 on port 8080)
+  - Native Tauri app (23MB executable)
+  - Dual deployment: `./app` (GUI) or `./app --server` (web)
 - Tauri 2.0 cross-platform application (Rust + Svelte 5)
 - **Chat-based UI** (4 channels: #general, #human, #knowledge, #vote)
 - **Rate limiting & spam detection** (2/min, 10/hour, 50/day + pattern recognition)
@@ -27,11 +31,12 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 - **97 backend tests passing**
 
 ⏳ **In Development:**
+- Frontend dual-mode support (Tauri invoke vs fetch)
+- WebSocket real-time chat (replace 5-second polling)
+- Docker container for self-hosted deployment
 - DDoS protection (circuit breakers, proof-of-work)
-- Chat commands (/ask, /search, /session)
 - Proof of Human Value (PoHV) safety mechanisms
 - Reputation/ranking system (5-tier meritocracy)
-- Distributed knowledge bank (IPFS integration)
 
 ## 🌟 Core Philosophy
 
@@ -199,6 +204,52 @@ ollama pull llama3.2:3b       # 2GB
 ollama pull qwen2.5:3b        # 2.3GB
 ```
 
+### Deployment Options (NEW v0.6.0)
+
+**Choose your deployment mode based on your needs:**
+
+#### 1️⃣ **Native App** (Power Users - Recommended)
+Desktop application with full features, offline support, 23MB executable.
+
+```bash
+# Build native app
+pnpm tauri build
+
+# Run native app (GUI)
+./src-tauri/target/release/app
+
+# Or install package:
+# Linux: sudo dpkg -i src-tauri/target/release/bundle/deb/*.deb
+# Windows: council-of-dicks_0.6.0_x64_en-US.msi
+# macOS: council-of-dicks_0.6.0_x64.dmg
+```
+
+#### 2️⃣ **HTTP Server** (Web Browser - Instant Access)
+Run as HTTP server for browser access (no installation needed).
+
+```bash
+# Build once
+cargo build --release --manifest-path=src-tauri/Cargo.toml
+
+# Start HTTP server
+./src-tauri/target/release/app --server
+# Opens on http://localhost:8080
+
+# Or specify port/host:
+./src-tauri/target/release/app --server --port 3000 --host 0.0.0.0
+```
+
+Then open browser: `http://localhost:8080`
+
+#### 3️⃣ **Docker** (Self-Hosted - Coming Soon)
+One-command deployment for servers, includes Ollama.
+
+```bash
+# TODO: Docker support planned for v0.7.0
+docker-compose up -d
+# Access: http://localhost:8080
+```
+
 ### Development Setup
 
 **Prerequisites:**
@@ -217,15 +268,18 @@ pnpm install
 # Run in development mode (with hot reload)
 pnpm tauri dev
 
+# Or run HTTP server mode for web development
+cargo run --manifest-path=src-tauri/Cargo.toml -- --server
+
 # Run tests (97 passing)
 cd src-tauri && cargo test --lib
 
 # Build for production
 pnpm tauri build
 # Output: src-tauri/target/release/bundle/
-#   - deb/council-of-dicks_0.5.0_amd64.deb
-#   - rpm/council-of-dicks-0.5.0-1.x86_64.rpm
-#   - appimage/council-of-dicks_0.5.0_amd64.AppImage
+#   - deb/council-of-dicks_0.6.0_amd64.deb
+#   - rpm/council-of-dicks-0.6.0-1.x86_64.rpm
+#   - appimage/council-of-dicks_0.6.0_amd64.AppImage
 ```
 
 ### Configuration

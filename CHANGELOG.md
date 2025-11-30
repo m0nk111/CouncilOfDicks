@@ -8,10 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### In Progress
-- DDoS protection: circuit breakers (CPU/RAM monitoring), proof-of-work
-- Integrate duplicate check into #vote channel UI
-- LLM username generation for AI providers
-- Local embeddings (rust-bert) for offline operation
+- Frontend dual-mode support (Tauri invoke vs fetch)
+- WebSocket real-time chat (replace 5-second polling)
+- Docker container for self-hosted deployment
+- CORS & authentication configuration
+
+---
+
+## [0.6.0-alpha] - 2025-11-30
+
+### Added - Hybrid Web+Native Architecture
+- **HTTP REST API**: Axum 0.7 server on port 8080 for browser access
+  - Health check: `GET /health`
+  - Config: `GET /api/config` (ollama_url, model, debug)
+  - Ollama: `POST /api/ollama/ask` (prompt → response)
+  - Placeholder homepage with API documentation
+- **Dual Deployment Modes**:
+  - Native app (default): `./app` → Tauri GUI with WebView
+  - HTTP server: `./app --server` → web browser access
+- **CLI Argument Parsing**: Detects `--server`, `serve`, or `--serve` flags
+- **CORS Support**: tower-http 0.6 with Any origin (development-friendly)
+- **Helper Functions**:
+  - `ask_ollama_internal()`: Takes &AppState instead of Tauri State
+  - `verify_signature_internal()`: Simplified bool return for HTTP
+- **Dependencies**: axum 0.7, tower 0.5, tower-http 0.6, hyper 1.0
+
+### Changed
+- **AppState.knowledge_bank**: Temporarily None (async init issue, will fix)
+- **lib.rs**: Added `run_server()` async function for HTTP-only mode
+- **main.rs**: Now `#[tokio::main] async fn main()` to support both modes
+
+### Technical Details
+- Port allocation: 8080 (HTTP API), 9001 (MCP server), 11434 (Ollama external)
+- HTTP server uses Arc<AppState> shared with Tauri commands
+- MVP version: 3 endpoints, 227 lines of code
+- Architecture decision: User requirement "bijna elk apparaat heeft een webbrowser, waardoor acceptatie veel hoger is"
 
 ---
 
