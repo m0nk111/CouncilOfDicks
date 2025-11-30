@@ -8,9 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### In Progress
-- Council UI panel for session management and deliberation display
-- Proof of Human Value (PoHV) safety mechanisms
-- Reputation/ranking system (5-tier meritocracy)
+- DDoS protection: circuit breakers (CPU/RAM monitoring), proof-of-work
+- Integrate duplicate check into #vote channel UI
+- LLM username generation for AI providers
+- Local embeddings (rust-bert) for offline operation
+
+---
+
+## [0.5.0-alpha] - 2025-11-30
+
+### Added - Chat Interface Architecture (4 Channels)
+- **4 Channels**: #general (all users), #human (human-only with signature validation), #knowledge (search past decisions), #vote (council deliberation)
+- Channel permissions: AI blocked in #human, signature validation for authenticity
+- Message types: Human, AI, System with reactions support
+- Auto-reload messages every 5 seconds
+- Settings modal with ProvidersPanel
+- ChatInterface.svelte (469 lines): main UI with sidebar, message list, input box
+- App.svelte minimal wrapper (85 lines, was 583)
+- 15 channel tests passing
+
+### Added - Duplicate Question Filter
+- Semantic similarity check using KnowledgeBank embeddings
+- 3 thresholds: Exact (0.95), Similar (0.85), Related (0.70)
+- DuplicateCheckResult: is_duplicate, similarity_score, existing_session_id, verdict, timestamp
+- format_warning() and format_suggestion() for UI messages
+- KnowledgeBank.get_deliberation(): retrieve full session details from SQLite
+- chat_check_duplicate Tauri command with debug logging
+- 5 duplicate filter tests
+
+### Added - Rate Limiting & Spam Detection
+- **RateLimiter**: Per-user tracking with 3-tier limits
+  - 2 questions/minute, 10/hour, 50/day
+  - Exponential backoff: 30s initial, 2x multiplier, 3600s max
+  - Cooldown state persistence across sessions
+- **SpamDetector**: Pattern recognition with score-based actions
+  - Duplicate messages in 60s window (+0.3 score)
+  - Rapid-fire (>5 messages in 10s) (+0.4 score)
+  - Short messages (<5 chars) (+0.2 score)
+  - ALL CAPS detection (80% threshold) (+0.2 score)
+  - Spam keywords (buy now, click here, etc.) (+0.5 score)
+- **Spam Levels**: Ok (0.0-0.3), Warning (0.3-0.5), Cooldown5m (0.5-0.7), Cooldown1h (0.7-0.9), Ban24h (0.9-1.0)
+- Frontend integration: rate limit check + spam check before sending messages
+- 4 Tauri commands: check_rate_limit, record_question, check_spam, record_message
+- 19 new tests (8 rate_limit, 11 spam_detector)
+
+### Technical Details - Chat System
+- **Backend**: ChannelManager with HashMap<ChannelType, Channel>
+- **Message Storage**: Per-channel history (max 10000 messages)
+- **Signatures**: Ed25519 validation for #human messages
+- **Frontend API**: 9 chat functions (send, get, react, count, check_duplicate, check_rate_limit, check_spam, etc.)
+- **chrono 0.4**: With serde feature for DateTime serialization
+- **Total Commands**: 41 (was 32, +9 chat commands)
+- **Total Tests**: 97 passing (+19 from 78)
+
+### Documentation
+- docs/CHAT_INTERFACE.md (574 lines): Complete architecture specification
+- Channel purposes, permissions, anti-spam strategies, DDoS protection
+- Message types, chat commands (/help, /search, /ask, /session)
+- UI mockup and implementation phases
 
 ---
 

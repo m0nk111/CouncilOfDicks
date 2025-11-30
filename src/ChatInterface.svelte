@@ -4,6 +4,10 @@
     chatSendMessage,
     chatGetMessages,
     chatAddReaction,
+    chatCheckRateLimit,
+    chatRecordQuestion,
+    chatCheckSpam,
+    chatRecordMessage,
     type ChatMessage,
     type ChannelType,
   } from "./api";
@@ -47,9 +51,41 @@
     try {
       error = "";
       const content = messageInput.trim();
-      messageInput = "";
 
+      // Check rate limit
+      const rateLimitResult = await chatCheckRateLimit(username);
+      if (!rateLimitResult.allowed) {
+        error = `⏱️ ${rateLimitResult.reason || 'Rate limit exceeded'}`;
+        return;
+      }
+
+      // Check spam (only for user messages, not commands)
+      if (!content.startsWith('/')) {
+        const spamResult = await chatCheckSpam(username, content);
+        if (spamResult.is_spam) {
+          error = `🛡️ Message blocked: ${spamResult.reasons.join(', ')}`;
+          if (spamResult.cooldown_seconds) {
+            const minutes = Math.floor(spamResult.cooldown_seconds / 60);
+            if (minutes > 0) {
+              error += ` (${minutes} min cooldown)`;
+            } else {
+              error += ` (${spamResult.cooldown_seconds}s cooldown)`;
+            }
+          }
+          return;
+        }
+      }
+
+      // Send message
+      messageInput = "";
       await chatSendMessage(selectedChannel, username, "human", content);
+      
+      // Record for spam/rate limit tracking
+      await chatRecordMessage(username, content);
+      if (selectedChannel === 'vote') {
+        await chatRecordQuestion(username);
+      }
+
       await loadMessages(); // Reload to show new message
     } catch (e) {
       error = `Failed to send message: ${e}`;
