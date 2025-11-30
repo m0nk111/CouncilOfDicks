@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### In Progress
 - Council UI panel for session management and deliberation display
+- Proof of Human Value (PoHV) safety mechanisms
+- Reputation/ranking system (5-tier meritocracy)
+
+---
+
+## [0.4.0-alpha] - 2025-11-30
+
+### Added - Multi-Model Deliberation Engine
+- **DeliberationEngine**: Orchestrate multi-round AI debates between multiple models
+- Parallel model querying with tokio::spawn for concurrent execution
+- Context building between rounds (inject previous responses into next round)
+- Consensus detection: agreement phrases + absence of disagreement phrases
+- Configurable council size and maximum rounds
+- 3 deliberation tests (47 total tests passing)
+
+### Added - AI Personality System
+- **7 AI archetypes** for council diversity:
+  - Pragmatist: practical, action-oriented solutions
+  - Systems Thinker: holistic architecture analysis
+  - Skeptic: critical evaluation, edge cases
+  - Ethicist: moral implications, stakeholder impact
+  - Realist: data-driven, evidence-based decisions
+  - Innovator: creative, unconventional approaches
+  - Mediator: consensus building, common ground
+- Each personality has 200+ word system prompt defining behavior
+- Helper functions: create_balanced_council(), get_personality()
+- 5 personality tests
+
+### Added - Knowledge Bank with Full RAG Pipeline
+- **Retrieval-Augmented Generation** for context-aware deliberations
+- Ollama embeddings API integration (nomic-embed-text model)
+- Semantic search with cosine similarity ranking
+- SQLite storage with embeddings table (BLOB serialization)
+- Chunking strategy: question + individual responses + consensus
+- build_rag_context(): Inject top-k relevant past decisions
+- 3 Knowledge Bank tests
+- 7 new Tauri commands: start_deliberation, kb_store_deliberation, kb_search, etc.
+
+### Technical Details
+- **Deliberation**: Tokio parallel tasks, context building, consensus detection
+- **Embeddings**: Ollama API (nomic-embed-text), f32 vectors, BLOB storage
+- **Semantic Search**: Cosine similarity, top-k ranking, RAG context builder
+- **Storage**: SQLx 0.8 (SQLite + async), sqlite-vec 0.1, ndarray 0.16
+- **Council Size**: Default 5 members, configurable via parameter
+- **Max Rounds**: Default 3, early termination on consensus
+- **Dependencies**: uuid 1.11 (session IDs), sqlx, sqlite-vec, ndarray
+
+### Refactored
+- OllamaClient wrapper struct (reusable across modules)
+- AppState initialization with async Knowledge Bank setup (tokio::runtime::block_on)
 
 ---
 

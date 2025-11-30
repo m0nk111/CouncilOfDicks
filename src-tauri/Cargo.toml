@@ -33,6 +33,13 @@ rand = "0.8"
 base64 = "0.22"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 
+# Database & Vector Search
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "migrate"] }
+sqlite-vec = "0.1"
+
+# NLP & Embeddings
+ndarray = "0.16"
+
 # P2P networking
 libp2p = { version = "0.54", features = [
     "tcp",

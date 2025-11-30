@@ -1,6 +1,6 @@
 # Council Of Dicks (TCOD)
 
-![Version](https://img.shields.io/badge/version-0.3.0--alpha-orange)
+![Version](https://img.shields.io/badge/version-0.4.0--alpha-orange)
 ![Status](https://img.shields.io/badge/status-alpha-yellow)
 ![License](https://img.shields.io/badge/license-Custom-blue)
 
@@ -8,23 +8,26 @@
 
 A **decentralized P2P network** where multiple AI models deliberate until they reach consensus. Every client is also a server node (Tor-like architecture), creating a truly distributed AI democracy that serves humanity.
 
-## 🚀 Current Status (v0.3.0-alpha)
+## 🚀 Current Status (v0.4.0-alpha)
 
 ✅ **Implemented:**
 - Tauri 2.0 cross-platform application (Rust + Svelte 5)
 - Ollama AI integration (local + network)
 - P2P networking foundation (libp2p with gossipsub, mDNS, Kademlia DHT)
 - Council deliberation system (multi-round voting + blind voting + consensus)
+- **Multi-model deliberation engine** (parallel querying, context building, consensus detection)
+- **AI personality system** (7 archetypes: Pragmatist, Systems Thinker, Skeptic, Ethicist, Realist, Innovator, Mediator)
+- **Knowledge Bank with RAG** (Ollama embeddings, semantic search, cosine similarity, SQLite storage)
 - Ed25519 cryptographic signatures (response authentication)
 - MCP server integration (JSON-RPC 2.0 on port 9001)
 - Comprehensive logging & metrics (debug mode + performance tracking)
-- 36 backend tests passing
+- 47 backend tests passing
 
 ⏳ **In Development:**
 - Council UI panel (frontend integration)
 - Proof of Human Value (PoHV) safety mechanisms
 - Reputation/ranking system (5-tier meritocracy)
-- Knowledge bank persistence (SQLite + IPFS)
+- Distributed knowledge bank (IPFS integration)
 
 ## 🌟 Core Philosophy
 
@@ -47,8 +50,11 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 7. **P2P distribution** - every node contributes to network resilience
 8. **Build knowledge** - sessions preserved for future reference (eternal council)
 
-### Current Capabilities (v0.3.0-alpha)
+### Current Capabilities (v0.4.0-alpha)
 
+✅ **Multi-model deliberation** - Parallel AI querying with context building between rounds  
+✅ **AI personality system** - 7 archetypes for diverse perspectives (Pragmatist, Skeptic, Ethicist, etc.)  
+✅ **Knowledge Bank with RAG** - Semantic search with Ollama embeddings, inject past decisions into context  
 ✅ **Ask Ollama models** - Query any Ollama-compatible AI model  
 ✅ **Create council sessions** - Multi-round deliberation with blind voting  
 ✅ **P2P networking** - Join mesh network, discover local peers  
@@ -56,7 +62,7 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 ✅ **MCP integration** - External AI agents can use council as a tool  
 ✅ **Performance metrics** - Track request times, rolling averages  
 ⏳ **Council UI** - Frontend interface for session management (in dev)  
-⏳ **Knowledge bank** - Persistent decision history with semantic search (in dev)
+⏳ **Distributed KB** - IPFS integration for decentralized knowledge (planned)
 
 ## 🏗️ Architecture
 
@@ -71,9 +77,19 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 │  │  - Network status & peer list                          │ │
 │  │  - Council session management                          │ │
 │  └────────────────────┬───────────────────────────────────┘ │
-│                       │ Tauri IPC (19 commands)             │
+│                       │ Tauri IPC (26 commands)             │
 │  ┌────────────────────▼───────────────────────────────────┐ │
 │  │  Rust Backend (tokio async)                           │ │
+│  │  ├─ Deliberation Engine (multi-model orchestration)   │ │
+│  │  │  ├─ Parallel model querying (tokio::spawn)         │ │
+│  │  │  ├─ Context building (inject previous responses)   │ │
+│  │  │  └─ Consensus detection (agreement analysis)       │ │
+│  │  ├─ Personality System (7 AI archetypes)              │ │
+│  │  │  └─ Pragmatist, Systems Thinker, Skeptic, etc.    │ │
+│  │  ├─ Knowledge Bank (RAG with Ollama embeddings)       │ │
+│  │  │  ├─ Semantic search (cosine similarity)            │ │
+│  │  │  ├─ Embedding generation (nomic-embed-text)        │ │
+│  │  │  └─ SQLite storage with FTS                        │ │
 │  │  ├─ P2P Network (libp2p 0.54)                         │ │
 │  │  │  ├─ Gossipsub (pub/sub messaging)                  │ │
 │  │  │  ├─ mDNS (local peer discovery)                    │ │
@@ -89,7 +105,6 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 │  │  │  └─ Identity management (keypair generation/load)  │ │
 │  │  ├─ MCP Server (JSON-RPC 2.0 on port 9001)           │ │
 │  │  │  └─ External tool integration for AI agents        │ │
-│  │  ├─ Knowledge Bank (SQLite + IPFS - in dev)           │ │
 │  │  ├─ Ollama Integration (qwen2.5-coder:7b)             │ │
 │  │  ├─ Logger (emoji + color + timestamps)               │ │
 │  │  ├─ Metrics (rolling average, 100 requests)           │ │

@@ -2,6 +2,7 @@ mod config;
 mod council;
 mod crypto;
 mod deliberation;
+mod knowledge;
 mod mcp;
 mod ollama;
 mod personalities;
@@ -334,6 +335,68 @@ async fn create_custom_council(
     Ok(members)
 }
 
+// Knowledge Bank commands
+#[tauri::command]
+async fn kb_store_deliberation(
+    result: deliberation::DeliberationResult,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    state.log_info("kb_store", &format!("Storing deliberation: {}", result.session_id));
+    
+    if let Some(kb) = &state.knowledge_bank {
+        kb.store_deliberation(&result).await?;
+        state.log_success("kb_store", "Deliberation stored with embeddings");
+        Ok("Stored successfully".to_string())
+    } else {
+        Err("Knowledge bank not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn kb_search(
+    query: String,
+    limit: usize,
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<knowledge::SearchResult>, String> {
+    state.log_info("kb_search", &format!("Searching: {}", query));
+    
+    if let Some(kb) = &state.knowledge_bank {
+        let results = kb.semantic_search(&query, limit).await?;
+        state.log_success("kb_search", &format!("Found {} results", results.len()));
+        Ok(results)
+    } else {
+        Err("Knowledge bank not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn kb_get_rag_context(
+    question: String,
+    top_k: usize,
+    state: tauri::State<'_, AppState>,
+) -> Result<knowledge::RAGContext, String> {
+    state.log_info("kb_rag", &format!("Building RAG context for: {}", question));
+    
+    if let Some(kb) = &state.knowledge_bank {
+        let context = kb.build_rag_context(&question, top_k).await?;
+        state.log_success("kb_rag", &format!("Built context with {} decisions", context.relevant_decisions.len()));
+        Ok(context)
+    } else {
+        Err("Knowledge bank not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn kb_list_all(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<(String, String, bool)>, String> {
+    if let Some(kb) = &state.knowledge_bank {
+        kb.list_all().await
+    } else {
+        Err("Knowledge bank not initialized".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
@@ -365,7 +428,11 @@ pub fn run() {
         mcp_status,
         start_deliberation,
         get_personalities,
-        create_custom_council
+        create_custom_council,
+        kb_store_deliberation,
+        kb_search,
+        kb_get_rag_context,
+        kb_list_all
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

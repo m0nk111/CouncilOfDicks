@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
+use crate::knowledge::KnowledgeBank;
 use crate::logger::Logger;
 use crate::mcp::McpServer;
 use crate::metrics::MetricsCollector;
@@ -17,6 +18,7 @@ pub struct AppState {
     pub council_manager: Arc<CouncilSessionManager>,
     pub mcp_server: Arc<McpServer>,
     pub signing_identity: Arc<SigningIdentity>,
+    pub knowledge_bank: Option<Arc<KnowledgeBank>>,
 }
 
 impl AppState {
@@ -53,14 +55,35 @@ impl AppState {
             Arc::new(identity)
         };
         
+        // Initialize knowledge bank (async operation, will be None if fails)
+        let kb = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async {
+                let config = AppConfig::default();
+                match KnowledgeBank::new(
+                    "sqlite:./council_knowledge.db",
+                    logger.clone(),
+                    config.ollama_url.clone(),
+                )
+                .await
+                {
+                    Ok(kb) => Some(Arc::new(kb)),
+                    Err(e) => {
+                        logger.error("knowledge", &format!("Failed to initialize Knowledge Bank: {}", e));
+                        None
+                    }
+                }
+            });
+
         Self {
-            config: Arc::new(Mutex::new(AppConfig::new())),
+            config: Arc::new(Mutex::new(AppConfig::default())),
             logger: logger.clone(),
             metrics: Arc::new(Mutex::new(MetricsCollector::new())),
             p2p_manager: Arc::new(P2PManager::new(9000)),
             council_manager,
             mcp_server,
             signing_identity,
+            knowledge_bank: kb,
         }
     }
 
