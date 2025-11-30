@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::chat::{ChannelManager, DuplicateFilter};
+use crate::chat::{ChannelManager, DuplicateFilter, RateLimiter, SpamDetector};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -22,6 +22,8 @@ pub struct AppState {
     pub knowledge_bank: Option<Arc<KnowledgeBank>>,
     pub channel_manager: Arc<ChannelManager>,
     pub duplicate_filter: Option<Arc<DuplicateFilter>>,
+    pub rate_limiter: Arc<RateLimiter>,
+    pub spam_detector: Arc<SpamDetector>,
 }
 
 impl AppState {
@@ -87,10 +89,18 @@ impl AppState {
             "🤖 Welcome to Council Of Dicks! Type /help for commands.".to_string(),
         );
 
-        // Initialize duplicate filter if knowledge bank is available
-        let duplicate_filter = kb.as_ref().map(|kb| {
-            Arc::new(DuplicateFilter::new(kb.clone()))
-        });
+        // Initialize duplicate filter if KB is available
+        let duplicate_filter = if kb.is_some() {
+            Some(Arc::new(DuplicateFilter::new(Arc::clone(
+                kb.as_ref().unwrap(),
+            ))))
+        } else {
+            None
+        };
+
+        // Initialize rate limiter and spam detector
+        let rate_limiter = Arc::new(RateLimiter::new());
+        let spam_detector = Arc::new(SpamDetector::new());
 
         Self {
             config: Arc::new(Mutex::new(AppConfig::default())),
@@ -103,6 +113,8 @@ impl AppState {
             knowledge_bank: kb,
             channel_manager,
             duplicate_filter,
+            rate_limiter,
+            spam_detector,
         }
     }
 

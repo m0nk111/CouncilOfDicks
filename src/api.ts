@@ -256,7 +256,43 @@ export async function chatGetMessageCount(
 export async function chatCheckDuplicate(
   question: string
 ): Promise<DuplicateCheckResult> {
-  return await invoke("chat_check_duplicate", { question });
+  return await invoke('chat_check_duplicate', { question });
+}
+
+// Rate limiting types
+export interface RateLimitResult {
+  allowed: boolean;
+  reason?: string;
+  retry_after_seconds?: number;
+}
+
+// Spam detection types
+export type SpamLevel = 'Ok' | 'Warning' | 'Cooldown5m' | 'Cooldown1h' | 'Ban24h';
+
+export interface SpamCheckResult {
+  is_spam: boolean;
+  spam_score: number;
+  spam_level: SpamLevel;
+  reasons: string[];
+  cooldown_seconds?: number;
+}
+
+// Rate limiting API
+export async function chatCheckRateLimit(userId: string): Promise<RateLimitResult> {
+  return await invoke('chat_check_rate_limit', { userId });
+}
+
+export async function chatRecordQuestion(userId: string): Promise<void> {
+  return await invoke('chat_record_question', { userId });
+}
+
+// Spam detection API
+export async function chatCheckSpam(userId: string, message: string): Promise<SpamCheckResult> {
+  return await invoke('chat_check_spam', { userId, message });
+}
+
+export async function chatRecordMessage(userId: string, message: string): Promise<void> {
+  return await invoke('chat_record_message', { userId, message });
 }
 
 // Provider management commands

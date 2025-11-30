@@ -485,34 +485,101 @@ async fn chat_check_duplicate(
     question: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<chat::DuplicateCheckResult, String> {
-    let duplicate_filter = state
-        .duplicate_filter
-        .as_ref()
-        .ok_or_else(|| "Duplicate filter not available (knowledge bank not initialized)".to_string())?;
+    state.log_debug("chat", &format!("🔍 Checking for duplicate: {}", question));
 
-    state.log_debug("duplicate_check", &format!("Checking question: {}", question));
+    if let Some(ref duplicate_filter) = state.duplicate_filter {
+        let result = duplicate_filter
+            .check_duplicate(&question)
+            .await
+            .map_err(|e| format!("Failed to check duplicate: {}", e))?;
 
-    let result = duplicate_filter.check_duplicate(&question).await?;
+        if result.is_duplicate {
+            state.log_info(
+                "chat",
+                &format!(
+                    "⛔ Duplicate detected: score={:.2}, session={}",
+                    result.similarity_score,
+                    result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string())
+                ),
+            );
+        } else if result.similarity_score > 0.70 {
+            state.log_debug(
+                "chat",
+                &format!("💡 Related question found: score={:.2}", result.similarity_score),
+            );
+        }
 
-    if result.is_duplicate {
+        Ok(result)
+    } else {
+        Err("Duplicate filter not available (Knowledge Bank not initialized)".to_string())
+    }
+}
+
+#[tauri::command]
+async fn chat_check_rate_limit(
+    user_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<chat::RateLimitResult, String> {
+    state.log_debug("chat", &format!("⏱️ Checking rate limit for user: {}", user_id));
+
+    let result = state.rate_limiter.check_rate_limit(&user_id);
+
+    if !result.allowed {
         state.log_info(
-            "duplicate_check",
+            "chat",
             &format!(
-                "Duplicate found (score: {:.2}): session #{}",
-                result.similarity_score,
-                result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string())
+                "🚫 Rate limit exceeded for {}: {}",
+                user_id,
+                result.reason.as_ref().unwrap_or(&"Unknown".to_string())
             ),
         );
-    } else if result.similarity_score >= 0.70 {
-        state.log_info(
-            "duplicate_check",
-            &format!("Related question found (score: {:.2})", result.similarity_score),
-        );
-    } else {
-        state.log_debug("duplicate_check", "No similar questions found");
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+async fn chat_record_question(
+    user_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    state.rate_limiter.record_question(&user_id);
+    state.log_debug("chat", &format!("✅ Recorded question for user: {}", user_id));
+    Ok(())
+}
+
+#[tauri::command]
+async fn chat_check_spam(
+    user_id: String,
+    message: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<chat::SpamCheckResult, String> {
+    state.log_debug("chat", &format!("🛡️ Checking spam for user: {}", user_id));
+
+    let result = state.spam_detector.check_spam(&user_id, &message);
+
+    if result.is_spam {
+        state.log_info(
+            "chat",
+            &format!(
+                "⚠️ Spam detected: score={:.2}, level={:?}, reasons={:?}",
+                result.spam_score, result.spam_level, result.reasons
+            ),
+        );
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+async fn chat_record_message(
+    user_id: String,
+    message: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    state.spam_detector.record_message(&user_id, &message);
+    state.log_debug("chat", &format!("✅ Recorded message for user: {}", user_id));
+    Ok(())
 }
 
 // Provider management commands
@@ -691,7 +758,11 @@ pub fn run() {
         chat_get_messages,
         chat_add_reaction,
         chat_get_message_count,
-        chat_check_duplicate
+        chat_check_duplicate,
+        chat_check_rate_limit,
+        chat_record_question,
+        chat_check_spam,
+        chat_record_message
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {
