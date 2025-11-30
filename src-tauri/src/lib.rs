@@ -5,6 +5,7 @@ mod logger;
 mod metrics;
 mod p2p;
 mod protocol;
+mod p2p_manager;
 
 #[cfg(test)]
 mod tests;
@@ -70,6 +71,38 @@ fn get_metrics(state: tauri::State<'_, AppState>) -> metrics::PerformanceMetrics
     metrics.get_metrics()
 }
 
+#[tauri::command]
+async fn p2p_start(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    state.log_info("p2p_start", "Starting P2P network");
+    let result = state.p2p_manager.start().await;
+    
+    match &result {
+        Ok(msg) => state.log_success("p2p_start", msg),
+        Err(e) => state.log_error("p2p_start", &format!("Failed: {}", e)),
+    }
+    
+    result
+}
+
+#[tauri::command]
+async fn p2p_stop(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    state.log_info("p2p_stop", "Stopping P2P network");
+    let result = state.p2p_manager.stop().await;
+    
+    match &result {
+        Ok(msg) => state.log_success("p2p_stop", msg),
+        Err(e) => state.log_error("p2p_stop", &format!("Failed: {}", e)),
+    }
+    
+    result
+}
+
+#[tauri::command]
+async fn p2p_status(state: tauri::State<'_, AppState>) -> Result<p2p_manager::NetworkStatus, String> {
+    state.log_debug("p2p_status", "Fetching P2P status");
+    Ok(state.p2p_manager.status().await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   // Initialize app state
@@ -83,7 +116,10 @@ pub fn run() {
         ask_ollama,
         get_config,
         set_debug,
-        get_metrics
+        get_metrics,
+        p2p_start,
+        p2p_stop,
+        p2p_status
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {

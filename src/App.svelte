@@ -1,6 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { askCouncil, getConfig, setDebug, getMetrics, type AppConfig, type PerformanceMetrics } from "./api";
+  import { 
+    askCouncil, 
+    getConfig, 
+    setDebug, 
+    getMetrics, 
+    p2pStart, 
+    p2pStop, 
+    p2pStatus,
+    type AppConfig, 
+    type PerformanceMetrics,
+    type NetworkStatus 
+  } from "./api";
 
   let question = "";
   let response = "";
@@ -8,6 +19,8 @@
   let config: AppConfig | null = null;
   let debugEnabled = true;
   let metrics: PerformanceMetrics | null = null;
+  let p2pNetwork: NetworkStatus | null = null;
+  let p2pLoading = false;
 
   onMount(async () => {
     try {
@@ -15,6 +28,7 @@
       debugEnabled = config.debug_enabled;
       console.log("🔧 Config loaded:", config);
       await loadMetrics();
+      await loadP2PStatus();
     } catch (error) {
       console.error("❌ Failed to load config:", error);
     }
@@ -25,6 +39,40 @@
       metrics = await getMetrics();
     } catch (error) {
       console.error("❌ Failed to load metrics:", error);
+    }
+  }
+
+  async function loadP2PStatus() {
+    try {
+      p2pNetwork = await p2pStatus();
+    } catch (error) {
+      console.error("❌ Failed to load P2P status:", error);
+    }
+  }
+
+  async function startP2P() {
+    p2pLoading = true;
+    try {
+      const result = await p2pStart();
+      console.log("✅ P2P started:", result);
+      await loadP2PStatus();
+    } catch (error) {
+      console.error("❌ Failed to start P2P:", error);
+    } finally {
+      p2pLoading = false;
+    }
+  }
+
+  async function stopP2P() {
+    p2pLoading = true;
+    try {
+      const result = await p2pStop();
+      console.log("✅ P2P stopped:", result);
+      await loadP2PStatus();
+    } catch (error) {
+      console.error("❌ Failed to stop P2P:", error);
+    } finally {
+      p2pLoading = false;
     }
   }
 
@@ -81,6 +129,43 @@
       {/if}
     </div>
   </header>
+
+  {#if p2pNetwork}
+    <div class="p2p-panel">
+      <h3>📡 P2P Network</h3>
+      <div class="p2p-info">
+        <div class="p2p-status">
+          <span class="status-dot" class:active={p2pNetwork.running}></span>
+          <span>{p2pNetwork.running ? "Online" : "Offline"}</span>
+        </div>
+        {#if p2pNetwork.running && p2pNetwork.peer_id}
+          <div class="p2p-detail">
+            <span class="label">Peer ID:</span>
+            <span class="value mono">{p2pNetwork.peer_id.substring(0, 16)}...</span>
+          </div>
+          <div class="p2p-detail">
+            <span class="label">Connected Peers:</span>
+            <span class="value">{p2pNetwork.connected_peers}</span>
+          </div>
+          <div class="p2p-detail">
+            <span class="label">Port:</span>
+            <span class="value">{p2pNetwork.port}</span>
+          </div>
+        {/if}
+      </div>
+      <div class="p2p-actions">
+        {#if p2pNetwork.running}
+          <button class="p2p-btn stop" on:click={stopP2P} disabled={p2pLoading}>
+            {p2pLoading ? "⏳ Stopping..." : "⏹️ Stop Network"}
+          </button>
+        {:else}
+          <button class="p2p-btn start" on:click={startP2P} disabled={p2pLoading}>
+            {p2pLoading ? "⏳ Starting..." : "▶️ Start Network"}
+          </button>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <div class="council-container">
     <div class="input-section">
@@ -381,5 +466,113 @@
 
   .metric-value.error {
     color: #ff4444;
+  }
+
+  .p2p-panel {
+    background: #1a1a1a;
+    border: 2px solid #00ff88;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 24px auto;
+    max-width: 800px;
+  }
+
+  .p2p-panel h3 {
+    color: #00ff88;
+    margin: 0 0 16px 0;
+    font-size: 18px;
+  }
+
+  .p2p-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .p2p-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #e0e0e0;
+  }
+
+  .status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #666;
+    transition: background 0.3s;
+  }
+
+  .status-dot.active {
+    background: #00ff88;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+  }
+
+  .p2p-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+
+  .p2p-detail .label {
+    color: #888;
+  }
+
+  .p2p-detail .value {
+    color: #e0e0e0;
+    font-weight: 500;
+  }
+
+  .p2p-detail .value.mono {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }
+
+  .p2p-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .p2p-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .p2p-btn.start {
+    background: #00ff88;
+    color: #000;
+  }
+
+  .p2p-btn.start:hover:not(:disabled) {
+    background: #00ffaa;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+  }
+
+  .p2p-btn.stop {
+    background: #ff4444;
+    color: #fff;
+  }
+
+  .p2p-btn.stop:hover:not(:disabled) {
+    background: #ff6666;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+  }
+
+  .p2p-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>

@@ -2,23 +2,27 @@ use std::sync::{Arc, Mutex};
 use crate::config::AppConfig;
 use crate::logger::Logger;
 use crate::metrics::MetricsCollector;
+use crate::p2p_manager::P2PManager;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Mutex<AppConfig>>,
     pub logger: Arc<Logger>,
     pub metrics: Arc<Mutex<MetricsCollector>>,
+    pub p2p_manager: Arc<P2PManager>,
 }
 
 impl AppState {
     pub fn new(config: AppConfig) -> Self {
         let logger = Arc::new(Logger::new(config.debug_enabled));
         let metrics = Arc::new(Mutex::new(MetricsCollector::new()));
+        let p2p_manager = Arc::new(P2PManager::new(9000)); // Default P2P port
 
         Self {
             config: Arc::new(Mutex::new(config)),
             logger,
             metrics,
+            p2p_manager,
         }
     }
 
