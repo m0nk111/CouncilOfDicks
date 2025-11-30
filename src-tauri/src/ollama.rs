@@ -31,6 +31,16 @@ impl OllamaClient {
     }
 }
 
+/// Internal function for HTTP API use
+pub async fn ask_ollama_internal(
+    state: &crate::state::AppState,
+    model: String,
+    prompt: String,
+) -> Result<String, String> {
+    let config = state.get_config();
+    ask_ollama(&config.ollama_url, &model, prompt).await
+}
+
 pub async fn ask_ollama(url: &str, model: &str, prompt: String) -> Result<String, String> {
     println!("🔍 [DEBUG] Asking Ollama: {}", prompt);
     println!("📡 [DEBUG] URL: {}, Model: {}", url, model);

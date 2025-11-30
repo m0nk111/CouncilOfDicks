@@ -28,6 +28,11 @@ src-tauri/WixTools/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Runtime data
+council_identity.key
+council_knowledge.db*
+*.sqlite*
 pnpm-debug.log*
 
 # Environment

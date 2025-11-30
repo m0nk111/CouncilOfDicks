@@ -60,25 +60,9 @@ impl AppState {
             Arc::new(identity)
         };
         
-        // Initialize knowledge bank (async operation, will be None if fails)
-        let kb = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(async {
-                let config = AppConfig::default();
-                match KnowledgeBank::new(
-                    "sqlite:./council_knowledge.db",
-                    logger.clone(),
-                    config.ollama_url.clone(),
-                )
-                .await
-                {
-                    Ok(kb) => Some(Arc::new(kb)),
-                    Err(e) => {
-                        logger.error("knowledge", &format!("Failed to initialize Knowledge Bank: {}", e));
-                        None
-                    }
-                }
-            });
+        // Initialize knowledge bank (async operation, will be None for now)
+        // TODO: Initialize KB properly in async context
+        let kb = None;
 
         // Initialize channel manager
         let channel_manager = Arc::new(ChannelManager::new());

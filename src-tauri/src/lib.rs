@@ -3,6 +3,7 @@ mod config;
 mod council;
 mod crypto;
 mod deliberation;
+mod http_server;
 mod knowledge;
 mod mcp;
 mod ollama;
@@ -803,4 +804,60 @@ pub fn run() {
       
       std::process::exit(1);
     });
+}
+
+/// Run in HTTP server mode (no GUI)
+/// Usage: ./app --server or ./app serve
+pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
+    // Parse CLI arguments
+    let args: Vec<String> = std::env::args().collect();
+    let mut port = 8080u16;
+    let mut host = "127.0.0.1".to_string();
+    
+    // Simple argument parsing
+    for i in 1..args.len() {
+        if args[i] == "--port" || args[i] == "-p" {
+            if let Some(p) = args.get(i + 1) {
+                port = p.parse().unwrap_or(8080);
+            }
+        } else if args[i] == "--host" || args[i] == "-h" {
+            if let Some(h) = args.get(i + 1) {
+                host = h.clone();
+            }
+        }
+    }
+    
+    println!("╔════════════════════════════════════════╗");
+    println!("║   Council Of Dicks - HTTP Server Mode  ║");
+    println!("╚════════════════════════════════════════╝");
+    
+    // Initialize app state
+    let state = AppState::new();
+    let config = state.get_config();
+    
+    println!("✅ App state initialized");
+    println!("🔥 NR5 IS ALIVE at {}", config.ollama_url);
+    println!("🤖 Model: {}", config.ollama_model);
+    println!("🐛 Debug mode: {}", if config.debug_enabled { "ON" } else { "OFF" });
+    
+    // Create HTTP server
+    let http_config = http_server::HttpServerConfig {
+        port,
+        host: host.clone(),
+        enable_cors: true,
+    };
+    
+    let server = http_server::HttpServer::new(http_config, std::sync::Arc::new(state));
+    
+    println!("\n🌐 Starting HTTP API server...");
+    println!("   • Web UI: http://{}:{}", host, port);
+    println!("   • API: http://{}:{}/api/*", host, port);
+    println!("   • Health: http://{}:{}/health", host, port);
+    println!("   • WebSocket: ws://{}:{}/ws/chat", host, port);
+    println!("\n🚀 And awaaaay we go!\n");
+    
+    // Start server (blocks until shutdown)
+    server.start().await?;
+    
+    Ok(())
 }

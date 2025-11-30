@@ -147,6 +147,36 @@ pub fn public_key_fingerprint(public_key_base64: &str) -> Result<String, String>
     Ok(hex[..16].to_uppercase())
 }
 
+/// Internal helper for HTTP API - verify signature with raw strings
+pub fn verify_signature_internal(message: &str, signature: &str, public_key: &str) -> bool {
+    // Decode signature and public key
+    let sig_bytes = match general_purpose::STANDARD.decode(signature) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    
+    let pk_bytes = match general_purpose::STANDARD.decode(public_key) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    
+    if pk_bytes.len() != 32 || sig_bytes.len() != 64 {
+        return false;
+    }
+    
+    let mut key_array = [0u8; 32];
+    key_array.copy_from_slice(&pk_bytes);
+    
+    let verifying_key = match VerifyingKey::from_bytes(&key_array) {
+        Ok(k) => k,
+        Err(_) => return false,
+    };
+    
+    let signature = Signature::from_bytes(&sig_bytes.try_into().unwrap());
+    
+    verifying_key.verify(message.as_bytes(), &signature).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
