@@ -6,12 +6,21 @@
 # ============================================
 # Stage 1: Build Rust Backend
 # ============================================
-FROM rust:1.82-slim-bookworm AS rust-builder
+FROM rust:slim-bookworm AS rust-builder
 
 # Install build dependencies
+# Note: glib and webkit are needed for Tauri dependencies (even for server-only build)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    libglib2.0-dev \
+    libwebkit2gtk-4.1-dev \
+    build-essential \
+    curl \
+    wget \
+    file \
+    libgtk-3-dev \
+    librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build

@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub use ollama::OllamaProvider;
-pub use registry::ProviderRegistry;
 
 /// AI Provider error types
 #[derive(Debug, Clone, Serialize, Deserialize)]
