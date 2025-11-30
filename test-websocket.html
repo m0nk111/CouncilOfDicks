@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00d4ff;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #10b981;
+            color: white;
+        }
+        .status.disconnected {
+            background: #ef4444;
+            color: white;
+        }
+        .messages {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .message {
+            background: #0f3460;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #00d4ff;
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+            color: #999;
+        }
+        .message-author {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .message-content {
+            color: #eee;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #00a8cc;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .info {
+            background: #0f3460;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Chat Test</h1>
+        
+        <div id="status" class="status disconnected">
+            ⚪ Disconnected
+        </div>
+        
+        <div class="info">
+            <strong>ℹ️ Instructions:</strong>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Click "Connect" to establish WebSocket connection</li>
+                <li>Open the Tauri app and send messages in chat</li>
+                <li>Watch them appear here in real-time!</li>
+            </ol>
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="clearMessages()">Clear</button>
+        </div>
+        
+        <div id="messages" class="messages">
+            <div style="text-align: center; color: #666;">No messages yet...</div>
+        </div>
+        
+        <div class="info">
+            <strong>📊 Stats:</strong>
+            <div style="margin-top: 10px;">
+                Messages received: <strong id="msgCount">0</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messageCount = 0;
+        
+        const statusEl = document.getElementById('status');
+        const messagesEl = document.getElementById('messages');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const msgCountEl = document.getElementById('msgCount');
+        
+        function connect() {
+            if (ws) {
+                console.log('Already connected');
+                return;
+            }
+            
+            const wsUrl = 'ws://localhost:8080/ws/chat';
+            console.log('🔌 Connecting to:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('✅ Connected');
+                statusEl.textContent = '✅ Connected';
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            };
+            
+            ws.onmessage = (event) => {
+                console.log('📨 Message:', event.data);
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'welcome') {
+                        addSystemMessage(data.message);
+                    } else {
+                        // Chat message
+                        addMessage(data);
+                        messageCount++;
+                        msgCountEl.textContent = messageCount;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+            
+            ws.onclose = () => {
+                console.log('🔌 Disconnected');
+                statusEl.textContent = '⚪ Disconnected';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                ws = null;
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+        
+        function addSystemMessage(text) {
+            if (messagesEl.querySelector('div[style*="text-align: center"]')) {
+                messagesEl.innerHTML = '';
+            }
+            
+            const msg = document.createElement('div');
+            msg.className = 'message';
+            msg.innerHTML = `
+                <div class="message-header">
+                    <span class="message-author">SYSTEM</span>
+                    <span>${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="message-content">${text}</div>
+            `;
+            messagesEl.appendChild(msg);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        function addMessage(data) {
+            if (messagesEl.querySelector('div[style*="text-align: center"]')) {
+                messagesEl.innerHTML = '';
+            }
+            
+            const time = new Date(data.timestamp).toLocaleTimeString();
+            const channel = data.channel || 'unknown';
+            const authorType = data.author_type || 'unknown';
+            
+            const msg = document.createElement('div');
+            msg.className = 'message';
+            msg.innerHTML = `
+                <div class="message-header">
+                    <span>
+                        <span class="message-author">${data.author}</span>
+                        <span style="color: #666;"> in #${channel}</span>
+                        <span style="color: #888;"> (${authorType})</span>
+                    </span>
+                    <span>${time}</span>
+                </div>
+                <div class="message-content">${data.content}</div>
+            `;
+            messagesEl.appendChild(msg);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        function clearMessages() {
+            messagesEl.innerHTML = '<div style="text-align: center; color: #666;">No messages yet...</div>';
+            messageCount = 0;
+            msgCountEl.textContent = messageCount;
+        }
+        
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            console.log('🚀 Page loaded, ready to connect');
+        });
+    </script>
+</body>
+</html>

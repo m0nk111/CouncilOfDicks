@@ -2,7 +2,10 @@
 // Web-first architecture: browser access + optional native app
 
 use axum::{
-    extract::{Path, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -10,9 +13,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::state::AppState;
+use crate::chat::{ChannelType, Message as ChatMessage};
 
 // ========================================
 // Configuration
@@ -46,7 +51,10 @@ pub struct HttpServer {
 
 impl HttpServer {
     pub fn new(config: HttpServerConfig, state: Arc<AppState>) -> Self {
-        Self { config, state }
+        Self { 
+            config, 
+            state,
+        }
     }
 
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
@@ -70,6 +78,9 @@ impl HttpServer {
             
             // Config API
             .route("/api/config", get(config_get))
+            
+            // WebSocket for real-time chat
+            .route("/ws/chat", get(websocket_handler))
             
             // Static files (for web UI)
             .fallback(static_handler);
@@ -224,6 +235,88 @@ async fn static_handler() -> impl IntoResponse {
         [(header::CONTENT_TYPE, "text/html")],
         fallback_html
     ).into_response()
+}
+
+// ========================================
+// WebSocket Handler
+// ========================================
+
+/// WebSocket upgrade handler
+async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| websocket_connection(socket, state))
+}
+
+/// Handle individual WebSocket connection
+async fn websocket_connection(
+    mut socket: WebSocket,
+    state: Arc<AppState>,
+) {
+    let mut rx = state.websocket_broadcast.subscribe();
+    
+    // Send welcome message
+    let welcome = serde_json::json!({
+        "type": "welcome",
+        "message": "Connected to Council Of Dicks chat"
+    });
+    
+    if socket.send(Message::Text(welcome.to_string())).await.is_err() {
+        return;
+    }
+    
+    // Forward broadcast messages to this client
+    let mut send_socket = socket;
+    
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                // Receive messages from broadcast channel
+                msg = rx.recv() => {
+                    match msg {
+                        Ok(chat_msg) => {
+                            // Serialize and send to client
+                            let json = match serde_json::to_string(&chat_msg) {
+                                Ok(j) => j,
+                                Err(e) => {
+                                    eprintln!("❌ Failed to serialize message: {}", e);
+                                    continue;
+                                }
+                            };
+                            
+                            if send_socket.send(Message::Text(json)).await.is_err() {
+                                // Client disconnected
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                            eprintln!("⚠️ WebSocket client lagged, skipped {} messages", skipped);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            break;
+                        }
+                    }
+                }
+                
+                // Receive messages from client (for future bidirectional chat)
+                result = send_socket.recv() => {
+                    match result {
+                        Some(Ok(Message::Text(_text))) => {
+                            // TODO: Handle incoming chat messages from client
+                            // For now, WebSocket is receive-only (server->client)
+                        }
+                        Some(Ok(Message::Close(_))) | None => {
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        
+        println!("🔌 WebSocket client disconnected");
+    });
 }
 
 // ========================================

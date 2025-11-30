@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::chat::{ChannelManager, DuplicateFilter, RateLimiter, SpamDetector};
+use crate::chat::{ChannelManager, DuplicateFilter, Message as ChatMessage, RateLimiter, SpamDetector};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -9,6 +9,7 @@ use crate::mcp::McpServer;
 use crate::metrics::MetricsCollector;
 use crate::p2p_manager::P2PManager;
 use std::path::PathBuf;
+use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +25,7 @@ pub struct AppState {
     pub duplicate_filter: Option<Arc<DuplicateFilter>>,
     pub rate_limiter: Arc<RateLimiter>,
     pub spam_detector: Arc<SpamDetector>,
+    pub websocket_broadcast: Arc<broadcast::Sender<ChatMessage>>,
 }
 
 impl AppState {
@@ -85,6 +87,9 @@ impl AppState {
         // Initialize rate limiter and spam detector
         let rate_limiter = Arc::new(RateLimiter::new());
         let spam_detector = Arc::new(SpamDetector::new());
+        
+        // Create WebSocket broadcast channel (capacity: 100 messages)
+        let (ws_tx, _ws_rx) = broadcast::channel::<ChatMessage>(100);
 
         Self {
             config: Arc::new(Mutex::new(AppConfig::default())),
@@ -99,6 +104,7 @@ impl AppState {
             duplicate_filter,
             rate_limiter,
             spam_detector,
+            websocket_broadcast: Arc::new(ws_tx),
         }
     }
 

@@ -434,7 +434,14 @@ fn chat_send_message(
         &format!("Sending message to #{}: {}", channel, message.id),
     );
 
-    state.channel_manager.send_message(message)
+    let result = state.channel_manager.send_message(message.clone());
+    
+    // Broadcast to WebSocket clients
+    if result.is_ok() {
+        let _ = state.websocket_broadcast.send(message);
+    }
+    
+    result
 }
 
 #[tauri::command]
