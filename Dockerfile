@@ -6,7 +6,7 @@
 # ============================================
 # Stage 1: Build Rust Backend
 # ============================================
-FROM rust:1.77-slim-bookworm AS rust-builder
+FROM rust:1.82-slim-bookworm AS rust-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \

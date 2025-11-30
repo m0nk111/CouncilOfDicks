@@ -4,7 +4,7 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        State,
     },
     http::{StatusCode, header},
     response::{IntoResponse, Response},
@@ -17,7 +17,6 @@ use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::state::AppState;
-use crate::chat::{ChannelType, Message as ChatMessage};
 
 // ========================================
 // Configuration
