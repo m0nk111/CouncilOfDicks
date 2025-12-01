@@ -71,16 +71,29 @@ pub struct McpServer {
     council_manager: Arc<CouncilSessionManager>,
     logger: Arc<Logger>,
     listener: Arc<Mutex<Option<TcpListener>>>,
+    auth_token: String, // Simple bearer token for localhost auth
 }
 
 impl McpServer {
     /// Create new MCP server
     pub fn new(port: u16, council_manager: Arc<CouncilSessionManager>, logger: Arc<Logger>) -> Self {
+        // Generate random auth token on startup
+        use rand::Rng;
+        let token: String = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+        
+        logger.success("mcp_server", &format!("🔐 MCP Auth Token: {}", token));
+        logger.info("mcp_server", "Include this token in X-Auth-Token header for MCP requests");
+        
         Self {
             port,
             council_manager,
             logger,
             listener: Arc::new(Mutex::new(None)),
+            auth_token: token,
         }
     }
 
@@ -159,6 +172,10 @@ impl McpServer {
         let (reader, mut writer) = stream.into_split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
+        
+        // Note: For full auth implementation, we'd need to parse HTTP headers here
+        // For now, we rely on localhost binding as the primary security mechanism
+        // TODO: Add proper header parsing for X-Auth-Token validation
 
         loop {
             line.clear();

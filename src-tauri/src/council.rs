@@ -29,7 +29,7 @@ impl CouncilSessionManager {
         let session_id = self.generate_session_id(&question);
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         let session = CouncilSession {
@@ -70,7 +70,7 @@ impl CouncilSessionManager {
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         session.responses.push(CouncilResponse {
@@ -248,8 +248,8 @@ impl CouncilSessionManager {
         hasher.update(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+                .unwrap_or(std::time::Duration::from_secs(0))
+                .as_secs()
                 .to_string()
                 .as_bytes(),
         );
