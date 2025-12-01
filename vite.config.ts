@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,
-    host: host || false,
+    host: host || "0.0.0.0", // Listen on all interfaces
     hmr: host
       ? {
           protocol: "ws",
