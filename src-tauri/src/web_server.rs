@@ -1,10 +1,9 @@
 use axum::{
     extract::{Json, State},
-    http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
     Router,
 };
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -96,7 +95,7 @@ async fn create_agent(
     );
     
     if let Some(tools) = req.tools {
-        agent.tools = tools;
+        agent.enabled_tools = tools;
     }
     
     match state.agent_pool.add_agent(agent).await {
@@ -126,7 +125,7 @@ async fn list_council_sessions(State(state): State<WebState>) -> (StatusCode, Js
 async fn get_council_session(
     State(state): State<WebState>,
     Json(session_id): Json<String>,
-) -> (StatusCode, Json<ApiResponse<Option<crate::council::CouncilSession>>>) {
+) -> (StatusCode, Json<ApiResponse<Option<crate::protocol::CouncilSession>>>) {
     let session = state.council_manager.get_session(&session_id).await;
     (StatusCode::OK, Json(ApiResponse::ok(session)))
 }
@@ -134,21 +133,19 @@ async fn get_council_session(
 async fn create_council_session(
     State(state): State<WebState>,
     Json(req): Json<CouncilSessionRequest>,
-) -> impl IntoResponse {
-    let config = state.app_state.config.lock().unwrap();
+) -> impl axum::response::IntoResponse {
+    let config = state.app_state.config.lock().expect("Failed to lock config");
     let ollama_url = config.ollama_url.clone();
     drop(config);
 
-    let result = state.council_manager.create_session_with_agents(
+    match state.council_manager.create_session_with_agents(
         req.question,
         state.agent_pool.clone(),
         req.agent_ids,
         &ollama_url,
-    ).await;
-    
-    match result {
+    ).await {
         Ok(session_id) => (StatusCode::OK, Json(ApiResponse::ok(session_id))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<String>::err(e))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e))),
     }
 }
 
