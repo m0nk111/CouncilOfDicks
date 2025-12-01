@@ -27,7 +27,10 @@ WORKDIR /build
 
 # Copy Rust project files
 COPY src-tauri/Cargo.toml src-tauri/Cargo.lock ./
+COPY src-tauri/tauri.conf.json ./tauri.conf.json
+COPY src-tauri/build.rs ./build.rs
 COPY src-tauri/src ./src
+COPY src-tauri/icons ./icons
 
 # Build release binary (HTTP server mode only)
 RUN cargo build --release
@@ -59,9 +62,14 @@ RUN pnpm build
 FROM debian:bookworm-slim
 
 # Install runtime dependencies
+# Note: GTK/WebKit runtime libs needed even for server-only mode (Tauri deps)
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libwebkit2gtk-4.1-0 \
+    librsvg2-2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
