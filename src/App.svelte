@@ -1,8 +1,10 @@
 <script lang="ts">
   import ChatInterface from "./ChatInterface.svelte";
   import ProvidersPanel from "./ProvidersPanel.svelte";
+  import CouncilPanel from "./CouncilPanel.svelte";
 
   let showSettings = false;
+  let showCouncil = false;
 </script>
 
 {#if showSettings}
@@ -18,8 +20,24 @@
   </div>
 {/if}
 
+{#if showCouncil}
+  <!-- Council Modal -->
+  <div class="modal-overlay" on:click={() => (showCouncil = false)} role="dialog">
+    <div class="modal-content modal-wide" on:click|stopPropagation role="document">
+      <div class="modal-header">
+        <h2>🏛️ Council</h2>
+        <button class="close-btn" on:click={() => (showCouncil = false)}>✕</button>
+      </div>
+      <CouncilPanel />
+    </div>
+  </div>
+{/if}
+
 <!-- Main Chat Interface -->
-<ChatInterface on:showSettings={() => (showSettings = true)} />
+<ChatInterface 
+  on:showSettings={() => (showSettings = true)}
+  on:showCouncil={() => (showCouncil = true)}
+/>
 
 <style>
   :global(body) {
@@ -49,6 +67,10 @@
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .modal-wide {
+    max-width: 1200px;
   }
 
   .modal-header {

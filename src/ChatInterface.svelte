@@ -25,6 +25,10 @@
     dispatch("showSettings");
   }
 
+  function openCouncil() {
+    dispatch("showCouncil");
+  }
+
   const channels: { name: string; type: ChannelType; icon: string; description: string }[] = [
     { name: "General", type: "general", icon: "💬", description: "General discussion" },
     { name: "Human", type: "human", icon: "👤", description: "Human-only channel" },
@@ -152,6 +156,7 @@
     </div>
 
     <div class="sidebar-footer">
+      <button class="council-btn" on:click={openCouncil} title="Council Management">🏛️ Council</button>
       <button class="settings-btn" on:click={openSettings} title="Settings">⚙️ Settings</button>
     </div>
   </div>
@@ -308,8 +313,12 @@
   .sidebar-footer {
     padding: 1rem;
     border-top: 1px solid #0f3460;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
+  .council-btn,
   .settings-btn {
     width: 100%;
     padding: 0.5rem;
@@ -319,6 +328,19 @@
     color: #bbb;
     cursor: pointer;
     transition: all 0.2s;
+  }
+
+  .council-btn {
+    background: linear-gradient(135deg, #00d4ff20 0%, #0088cc20 100%);
+    border: 1px solid #00d4ff40;
+    color: #00d4ff;
+    font-weight: 500;
+  }
+
+  .council-btn:hover {
+    background: linear-gradient(135deg, #00d4ff40 0%, #0088cc40 100%);
+    border-color: #00d4ff;
+    color: #fff;
   }
 
   .settings-btn:hover {
