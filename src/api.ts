@@ -135,6 +135,13 @@ export async function councilCreateSession(question: string): Promise<string> {
   return await invoke("council_create_session", { question });
 }
 
+export async function councilCreateSessionWithAgents(
+  question: string,
+  agentIds: string[]
+): Promise<string> {
+  return await invoke("council_create_session_with_agents", { question, agentIds });
+}
+
 export async function councilGetSession(sessionId: string): Promise<CouncilSession> {
   return await invoke("council_get_session", { sessionId });
 }

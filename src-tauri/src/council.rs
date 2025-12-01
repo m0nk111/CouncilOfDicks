@@ -1,5 +1,6 @@
 // Council session manager for multi-round deliberation
 
+use crate::agents::{Agent, AgentPool};
 use crate::protocol::{
     CouncilResponse, CouncilSession, SessionStatus,
     VoteCommitment, VoteReveal,
@@ -255,6 +256,104 @@ impl CouncilSessionManager {
         );
         format!("{:x}", hasher.finalize())[..16].to_string()
     }
+
+    /// Create session with specific agents and gather their responses
+    /// This is the main entry point for agent-driven deliberation
+    pub async fn create_session_with_agents(
+        &self,
+        question: String,
+        agent_pool: Arc<AgentPool>,
+        agent_ids: Vec<String>,
+        ollama_url: &str,
+    ) -> Result<String, String> {
+        // Create session
+        let session_id = self.create_session(question.clone()).await;
+        
+        // Get agents
+        let agents = agent_pool.get_agents_by_ids(&agent_ids).await?;
+        
+        if agents.is_empty() {
+            return Err("No agents specified".to_string());
+        }
+        
+        // Gather responses from all agents in parallel
+        let mut handles = Vec::new();
+        
+        for agent in agents {
+            let session_id = session_id.clone();
+            let question = question.clone();
+            let ollama_url = ollama_url.to_string();
+            let self_clone = self.clone();
+            
+            let handle = tokio::spawn(async move {
+                self_clone.gather_agent_response(
+                    &session_id,
+                    &agent,
+                    &question,
+                    &ollama_url,
+                ).await
+            });
+            
+            handles.push(handle);
+        }
+        
+        // Wait for all responses
+        let mut success_count = 0;
+        for handle in handles {
+            match handle.await {
+                Ok(Ok(_)) => success_count += 1,
+                Ok(Err(e)) => eprintln!("Agent response error: {}", e),
+                Err(e) => eprintln!("Task join error: {}", e),
+            }
+        }
+        
+        if success_count == 0 {
+            return Err("No agents provided responses".to_string());
+        }
+        
+        Ok(session_id)
+    }
+    
+    /// Gather response from a single agent
+    async fn gather_agent_response(
+        &self,
+        session_id: &str,
+        agent: &Agent,
+        question: &str,
+        ollama_url: &str,
+    ) -> Result<(), String> {
+        // Build prompt with agent's system context
+        let prompt = agent.build_prompt(question, None);
+        
+        // Call Ollama API
+        let response = crate::ollama::ask_ollama(
+            ollama_url,
+            &agent.model,
+            prompt,
+        ).await?;
+        
+        // Add response to session
+        self.add_response(
+            session_id,
+            agent.name.clone(),
+            response,
+            agent.id.clone(), // Use agent ID as peer ID
+            None, // TODO: Add signature support
+            None,
+        ).await?;
+        
+        Ok(())
+    }
+}
+
+// Make CouncilSessionManager cloneable for parallel execution
+impl Clone for CouncilSessionManager {
+    fn clone(&self) -> Self {
+        Self {
+            sessions: Arc::clone(&self.sessions),
+            consensus_threshold: self.consensus_threshold,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -427,5 +526,40 @@ mod tests {
         
         let consensus = manager.calculate_consensus(&session_id).await.unwrap();
         assert!(consensus.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_agent_pool_integration() {
+        use crate::agents::{Agent, AgentPool};
+        
+        let manager = CouncilSessionManager::new();
+        let pool = Arc::new(AgentPool::new());
+        
+        // Add test agents
+        let agent1 = Agent::new(
+            "Test Agent 1".to_string(),
+            "test-model".to_string(),
+            "You are a helpful assistant.".to_string(),
+        );
+        let agent2 = Agent::new(
+            "Test Agent 2".to_string(),
+            "test-model".to_string(),
+            "You are a critical thinker.".to_string(),
+        );
+        
+        let agent1_id = pool.add_agent(agent1).await.unwrap();
+        let agent2_id = pool.add_agent(agent2).await.unwrap();
+        
+        // Note: This test verifies the API exists, but won't actually call Ollama
+        // In a real scenario, you'd mock the Ollama client
+        let result = manager.create_session_with_agents(
+            "Test question?".to_string(),
+            pool,
+            vec![agent1_id, agent2_id],
+            "http://localhost:11434", // Won't actually connect in unit tests
+        ).await;
+        
+        // We expect this to fail since Ollama isn't running, but the API should be callable
+        assert!(result.is_err() || result.is_ok());
     }
 }

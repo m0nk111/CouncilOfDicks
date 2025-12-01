@@ -129,6 +129,28 @@ async fn council_create_session(state: tauri::State<'_, AppState>, question: Str
 }
 
 #[tauri::command]
+async fn council_create_session_with_agents(
+    state: tauri::State<'_, AppState>,
+    question: String,
+    agent_ids: Vec<String>,
+) -> Result<String, String> {
+    state.log_info("council_agents", &format!("Creating session with {} agents", agent_ids.len()));
+    
+    let config = state.get_config();
+    let session_id = state.council_manager
+        .create_session_with_agents(
+            question,
+            state.agent_pool.clone(),
+            agent_ids,
+            &config.ollama_url,
+        )
+        .await?;
+    
+    state.log_success("council_agents", &format!("Session {} created, agents responded", session_id));
+    Ok(session_id)
+}
+
+#[tauri::command]
 async fn council_get_session(state: tauri::State<'_, AppState>, session_id: String) -> Result<protocol::CouncilSession, String> {
     state.log_debug("council_get_session", &format!("Fetching session: {}", session_id));
     state.council_manager
@@ -800,6 +822,7 @@ pub fn run() {
         p2p_stop,
         p2p_status,
         council_create_session,
+        council_create_session_with_agents,
         council_get_session,
         council_list_sessions,
         council_add_response,
