@@ -16,6 +16,7 @@ mod metrics;
 mod p2p;
 mod protocol;
 mod p2p_manager;
+mod web_server;
 
 #[cfg(test)]
 mod tests;

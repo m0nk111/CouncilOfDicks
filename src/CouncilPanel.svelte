@@ -29,7 +29,14 @@
     try {
       agents = await agentList();
     } catch (e: any) {
-      error = `Failed to load agents: ${e}`;
+      error = `Backend not available - using mock data`;
+      console.warn("Backend error, using mock data:", e);
+      // Mock data for development
+      agents = [
+        { id: "mock-1", name: "Qwen Coder", model_name: "qwen2.5-coder:7b", system_prompt: "Expert coder", tools: [], active: true },
+        { id: "mock-2", name: "Llama Reasoner", model_name: "llama3:8b", system_prompt: "Logical thinker", tools: [], active: true },
+        { id: "mock-3", name: "Mistral Analyst", model_name: "mistral:7b", system_prompt: "Data analyst", tools: [], active: true },
+      ];
     }
   }
 

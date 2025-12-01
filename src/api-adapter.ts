@@ -11,10 +11,10 @@ export function isTauriEnvironment(): boolean {
 // Get API base URL for web mode
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    // Use current origin in production, localhost in development
+    // Use current origin in production, localhost:8080 in development
     return window.location.hostname === 'localhost' 
       ? 'http://localhost:8080'
-      : window.location.origin;
+      : `${window.location.protocol}//${window.location.hostname}:8080`;
   }
   return 'http://localhost:8080';
 }

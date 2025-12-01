@@ -132,22 +132,37 @@ export interface CouncilSession {
 
 // Council session commands
 export async function councilCreateSession(question: string): Promise<string> {
-  return await invoke("council_create_session", { question });
+  return await apiCall(
+    "council_create_session",
+    "POST /api/council/create",
+    { question, agent_ids: [] }
+  );
 }
 
 export async function councilCreateSessionWithAgents(
   question: string,
   agentIds: string[]
 ): Promise<string> {
-  return await invoke("council_create_session_with_agents", { question, agentIds });
+  return await apiCall(
+    "council_create_session_with_agents",
+    "POST /api/council/create",
+    { question, agent_ids: agentIds }
+  );
 }
 
 export async function councilGetSession(sessionId: string): Promise<CouncilSession> {
-  return await invoke("council_get_session", { sessionId });
+  return await apiCall(
+    "council_get_session",
+    "POST /api/council/session",
+    { sessionId }
+  );
 }
 
-export async function councilListSessions(): Promise<CouncilSession[]> {
-  return await invoke("council_list_sessions");
+export async function councilListSessions(): Promise<{sessions: CouncilSession[]}> {
+  return await apiCall(
+    "council_list_sessions",
+    "GET /api/council/sessions"
+  );
 }
 
 export async function councilAddResponse(
@@ -378,19 +393,23 @@ export async function agentAdd(
   model: string,
   systemPrompt: string
 ): Promise<string> {
-  return await invoke("agent_add", { name, model, systemPrompt });
+  return await apiCall("agent_add", "POST /api/agents/create", {
+    name,
+    model_name: model,
+    system_prompt: systemPrompt,
+  });
 }
 
 export async function agentRemove(agentId: string): Promise<void> {
-  return await invoke("agent_remove", { agentId });
+  return await apiCall("agent_remove", "POST /api/agents/delete", agentId);
 }
 
 export async function agentUpdate(agent: Agent): Promise<void> {
-  return await invoke("agent_update", { agent });
+  return await apiCall("agent_update", "POST /api/agents/update", { agent });
 }
 
 export async function agentList(): Promise<Agent[]> {
-  return await invoke("agent_list");
+  return await apiCall("agent_list", "GET /api/agents");
 }
 
 export async function agentGet(agentId: string): Promise<Agent> {
