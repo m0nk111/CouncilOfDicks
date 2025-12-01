@@ -16,13 +16,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("======================================\n");
 
     // Initialize app state
-    let config = AppConfig::default();
+    let app_state = Arc::new(AppState::new());
+    let config = app_state.get_config();
+    
     println!("✅ Config loaded:");
     println!("   Ollama URL: {}", config.ollama_url);
     println!("   Model: {}", config.ollama_model);
     println!("   Debug: {}\n", config.debug_enabled);
-
-    let app_state = Arc::new(AppState::new(config));
     
     // Initialize components
     let council_manager = Arc::new(CouncilSessionManager::new());

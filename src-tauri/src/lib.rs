@@ -1,7 +1,7 @@
-mod agents;
+pub mod agents;
 mod chat;
-mod config;
-mod council;
+pub mod config;
+pub mod council;
 mod crypto;
 mod deliberation;
 mod http_server;
@@ -10,13 +10,13 @@ mod mcp;
 mod ollama;
 mod personalities;
 mod providers;
-mod state;
+pub mod state;
 mod logger;
 mod metrics;
 mod p2p;
 mod protocol;
 mod p2p_manager;
-// mod web_server; // WIP: Handler trait issues with Axum 0.7, disabled for now
+pub mod web_server;
 
 #[cfg(test)]
 mod tests;
