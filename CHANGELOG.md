@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (2025-12-01)
+- **Web Server**: Disabled WIP web_server module due to Axum 0.7 Handler trait conflicts
+- **Tests**: Updated test count to 104 (was incorrectly documented as 97)
+- **Compilation**: Fixed CouncilSession import path (protocol:: not council::)
+- **Compilation**: Fixed agent.enabled_tools field name (was incorrectly `tools`)
+
 ### In Progress
 - CORS configuration for production (headers, origins whitelist)
 - API key authentication & JWT token support
@@ -115,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend API**: 9 chat functions (send, get, react, count, check_duplicate, check_rate_limit, check_spam, etc.)
 - **chrono 0.4**: With serde feature for DateTime serialization
 - **Total Commands**: 41 (was 32, +9 chat commands)
-- **Total Tests**: 97 passing (+19 from 78)
+- **Total Tests**: 104 passing (+26 from 78)
 
 ### Documentation
 - docs/CHAT_INTERFACE.md (574 lines): Complete architecture specification

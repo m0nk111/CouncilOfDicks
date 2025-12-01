@@ -31,7 +31,7 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 - Ed25519 cryptographic signatures (response authentication)
 - MCP server integration (JSON-RPC 2.0 on port 9001)
 - Comprehensive logging & metrics (debug mode + performance tracking)
-- **97 backend tests passing**
+- **104 backend tests passing**
 
 ⏳ **Next Phase (v0.7.0+):**
 - DDoS protection (circuit breakers, proof-of-work, IP whitelisting)
