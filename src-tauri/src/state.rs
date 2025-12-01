@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use crate::agents::AgentPool;
 use crate::chat::{ChannelManager, DuplicateFilter, Message as ChatMessage, RateLimiter, SpamDetector};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
@@ -26,6 +27,7 @@ pub struct AppState {
     pub rate_limiter: Arc<RateLimiter>,
     pub spam_detector: Arc<SpamDetector>,
     pub websocket_broadcast: Arc<broadcast::Sender<ChatMessage>>,
+    pub agent_pool: Arc<AgentPool>,
 }
 
 impl AppState {
@@ -90,6 +92,9 @@ impl AppState {
         
         // Create WebSocket broadcast channel (capacity: 100 messages)
         let (ws_tx, _ws_rx) = broadcast::channel::<ChatMessage>(100);
+        
+        // Initialize agent pool
+        let agent_pool = Arc::new(AgentPool::new());
 
         Self {
             config: Arc::new(Mutex::new(AppConfig::default())),
@@ -105,6 +110,7 @@ impl AppState {
             rate_limiter,
             spam_detector,
             websocket_broadcast: Arc::new(ws_tx),
+            agent_pool,
         }
     }
 

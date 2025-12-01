@@ -346,3 +346,54 @@ export async function providerSetDefault(providerId: string, purpose: "generatio
 export async function providerGenerateUsername(modelName: string, providerName: string): Promise<string> {
   return await invoke("provider_generate_username", { modelName, providerName });
 }
+
+// Agent pool management types
+export interface Agent {
+  id: string;
+  name: string;
+  model: string;
+  system_prompt: string;
+  enabled_tools: string[];
+  temperature: number;
+  active: boolean;
+  metadata: Record<string, string>;
+}
+
+export interface Tool {
+  name: string;
+  description: string;
+  parameters: any; // JSON schema
+}
+
+// Agent pool commands
+export async function agentAdd(
+  name: string,
+  model: string,
+  systemPrompt: string
+): Promise<string> {
+  return await invoke("agent_add", { name, model, systemPrompt });
+}
+
+export async function agentRemove(agentId: string): Promise<void> {
+  return await invoke("agent_remove", { agentId });
+}
+
+export async function agentUpdate(agent: Agent): Promise<void> {
+  return await invoke("agent_update", { agent });
+}
+
+export async function agentList(): Promise<Agent[]> {
+  return await invoke("agent_list");
+}
+
+export async function agentGet(agentId: string): Promise<Agent> {
+  return await invoke("agent_get", { agentId });
+}
+
+export async function agentListActive(): Promise<Agent[]> {
+  return await invoke("agent_list_active");
+}
+
+export async function agentGetTools(): Promise<Tool[]> {
+  return await invoke("agent_get_tools");
+}

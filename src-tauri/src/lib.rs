@@ -1,3 +1,4 @@
+mod agents;
 mod chat;
 mod config;
 mod council;
@@ -590,6 +591,67 @@ async fn chat_record_message(
     Ok(())
 }
 
+// Agent pool management commands
+#[tauri::command]
+async fn agent_add(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    model: String,
+    system_prompt: String,
+) -> Result<String, String> {
+    let agent = agents::Agent::new(name, model, system_prompt);
+    let agent_id = state.agent_pool.add_agent(agent).await?;
+    state.log_success("agent", &format!("Added agent: {}", agent_id));
+    Ok(agent_id)
+}
+
+#[tauri::command]
+async fn agent_remove(
+    state: tauri::State<'_, AppState>,
+    agent_id: String,
+) -> Result<(), String> {
+    state.agent_pool.remove_agent(&agent_id).await?;
+    state.log_success("agent", &format!("Removed agent: {}", agent_id));
+    Ok(())
+}
+
+#[tauri::command]
+async fn agent_update(
+    state: tauri::State<'_, AppState>,
+    agent: agents::Agent,
+) -> Result<(), String> {
+    state.agent_pool.update_agent(agent.clone()).await?;
+    state.log_success("agent", &format!("Updated agent: {}", agent.id));
+    Ok(())
+}
+
+#[tauri::command]
+async fn agent_list(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<agents::Agent>, String> {
+    Ok(state.agent_pool.list_agents().await)
+}
+
+#[tauri::command]
+async fn agent_get(
+    state: tauri::State<'_, AppState>,
+    agent_id: String,
+) -> Result<agents::Agent, String> {
+    state.agent_pool.get_agent(&agent_id).await
+}
+
+#[tauri::command]
+async fn agent_list_active(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<agents::Agent>, String> {
+    Ok(state.agent_pool.list_active_agents().await)
+}
+
+#[tauri::command]
+async fn agent_get_tools() -> Result<Vec<agents::Tool>, String> {
+    Ok(agents::Tool::standard_tools())
+}
+
 // Provider management commands
 #[tauri::command]
 async fn provider_add(
@@ -770,7 +832,14 @@ pub fn run() {
         chat_check_rate_limit,
         chat_record_question,
         chat_check_spam,
-        chat_record_message
+        chat_record_message,
+        agent_add,
+        agent_remove,
+        agent_update,
+        agent_list,
+        agent_get,
+        agent_list_active,
+        agent_get_tools
     ])
     .setup(move |app| {
       if cfg!(debug_assertions) {
