@@ -266,6 +266,31 @@ impl CouncilSessionManager {
         agent_ids: Vec<String>,
         ollama_url: &str,
     ) -> Result<String, String> {
+        self.create_session_with_agents_and_timeout(
+            question,
+            agent_pool,
+            agent_ids,
+            ollama_url,
+            30, // Default 30 second timeout
+        ).await
+    }
+    
+    /// Create session with agents and configurable timeout for stragglers
+    /// 
+    /// Deliberation flow:
+    /// 1. All agents race to respond (parallel)
+    /// 2. First agent to respond must wait for others
+    /// 3. Timeout ensures stragglers don't block forever
+    pub async fn create_session_with_agents_and_timeout(
+        &self,
+        question: String,
+        agent_pool: Arc<AgentPool>,
+        agent_ids: Vec<String>,
+        ollama_url: &str,
+        timeout_seconds: u64,
+    ) -> Result<String, String> {
+        use tokio::time::{timeout, Duration};
+        
         // Create session
         let session_id = self.create_session(question.clone()).await;
         
@@ -276,7 +301,9 @@ impl CouncilSessionManager {
             return Err("No agents specified".to_string());
         }
         
-        // Gather responses from all agents in parallel
+        let total_agents = agents.len();
+        
+        // Gather responses from all agents in parallel with timeout
         let mut handles = Vec::new();
         
         for agent in agents {
@@ -297,15 +324,51 @@ impl CouncilSessionManager {
             handles.push(handle);
         }
         
-        // Wait for all responses
-        let mut success_count = 0;
-        for handle in handles {
-            match handle.await {
-                Ok(Ok(_)) => success_count += 1,
-                Ok(Err(e)) => eprintln!("Agent response error: {}", e),
-                Err(e) => eprintln!("Task join error: {}", e),
+        // Wait for all responses with timeout
+        let wait_future = async {
+            let mut success_count = 0;
+            let mut error_count = 0;
+            
+            for handle in handles {
+                match handle.await {
+                    Ok(Ok(_)) => success_count += 1,
+                    Ok(Err(e)) => {
+                        eprintln!("⚠️ Agent response error: {}", e);
+                        error_count += 1;
+                    }
+                    Err(e) => {
+                        eprintln!("❌ Task join error: {}", e);
+                        error_count += 1;
+                    }
+                }
             }
-        }
+            
+            (success_count, error_count)
+        };
+        
+        let (success_count, error_count) = match timeout(Duration::from_secs(timeout_seconds), wait_future).await {
+            Ok((success, errors)) => {
+                if success > 0 {
+                    println!("✅ Council round complete: {} responded, {} failed", success, errors);
+                }
+                (success, errors)
+            }
+            Err(_) => {
+                // Timeout - some agents are still thinking
+                let current_responses = self.get_session(&session_id).await
+                    .map(|s| s.responses.len())
+                    .unwrap_or(0);
+                
+                eprintln!("⏱️ Timeout after {}s: {}/{} agents responded", 
+                    timeout_seconds, current_responses, total_agents);
+                
+                if current_responses == 0 {
+                    return Err(format!("No agents responded within {}s", timeout_seconds));
+                }
+                
+                (current_responses, total_agents - current_responses)
+            }
+        };
         
         if success_count == 0 {
             return Err("No agents provided responses".to_string());
