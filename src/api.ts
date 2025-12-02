@@ -45,6 +45,27 @@ export interface NetworkStatus {
   port: number;
 }
 
+// Verdict types
+export interface Verdict {
+  id: string;
+  session_id: string;
+  question: string;
+  verdict: string;
+  reasoning: string;
+  dissent: string | null;
+  confidence: number;
+  model_votes: Record<string, string>;
+  created_at: string;
+}
+
+export async function verdictListRecent(limit: number = 10): Promise<Verdict[]> {
+  return await apiCall<Verdict[]>("verdict_list_recent", { limit });
+}
+
+export async function verdictGet(verdictId: string): Promise<Verdict> {
+  return await apiCall<Verdict>("verdict_get", { verdict_id: verdictId });
+}
+
 // Chat types
 export type ChannelType = "general" | "human" | "knowledge" | "vote";
 export type AuthorType = "human" | "ai" | "system";

@@ -7,11 +7,15 @@
     councilCreateSessionWithAgents,
     councilGetSession,
     councilListSessions,
+    verdictListRecent,
+    type Verdict,
   } from "./api";
 
   // State
   let agents: any[] = [];
   let sessions: any[] = [];
+  let verdicts: Verdict[] = [];
+  let activeTab: "sessions" | "verdicts" = "sessions";
   let selectedAgents: Set<string> = new Set();
   let question = "";
   let loading = false;
@@ -28,6 +32,7 @@
   onMount(async () => {
     await loadAgents();
     await loadSessions();
+    await loadVerdicts();
   });
 
   async function loadAgents() {
@@ -52,6 +57,15 @@
     } catch (e: any) {
       console.warn("No sessions yet:", e);
       sessions = [];
+    }
+  }
+
+  async function loadVerdicts() {
+    try {
+      verdicts = await verdictListRecent(20);
+    } catch (e: any) {
+      console.warn("Failed to load verdicts:", e);
+      verdicts = [];
     }
   }
 
@@ -313,33 +327,79 @@
     </button>
   </div>
 
-  <!-- Sessions List -->
-  <div class="sessions-section">
-    <h3>📜 Recent Sessions</h3>
-    {#if sessions.length === 0}
-      <p class="empty-state">No sessions yet. Start a deliberation above.</p>
-    {:else}
+  <!-- History Tabs -->
+  <div class="history-section">
+    <div class="tabs">
+      <button 
+        class="tab-btn" 
+        class:active={activeTab === "sessions"} 
+        on:click={() => activeTab = "sessions"}
+      >
+        📜 Active Sessions
+      </button>
+      <button 
+        class="tab-btn" 
+        class:active={activeTab === "verdicts"} 
+        on:click={() => activeTab = "verdicts"}
+      >
+        ⚖️ Verdict History
+      </button>
+    </div>
+
+    {#if activeTab === "sessions"}
       <div class="sessions-list">
-        {#each sessions.slice(0, 10) as session (session.session_id)}
-          <button
-            class="session-card"
-            class:active={activeSessionId === session.session_id}
-            on:click={() => viewSession(session.session_id)}
-          >
-            <div class="session-header">
-              <span class="session-id">#{session.session_id.slice(0, 8)}</span>
-              <span class="session-time">{new Date(session.created_at * 1000).toLocaleString()}</span>
+        {#if sessions.length === 0}
+          <p class="empty-state">No active sessions. Start a deliberation above.</p>
+        {:else}
+          {#each sessions.slice(0, 10) as session (session.session_id)}
+            <button
+              class="session-card"
+              class:active={activeSessionId === session.session_id}
+              on:click={() => viewSession(session.session_id)}
+            >
+              <div class="session-header">
+                <span class="session-id">#{session.session_id.slice(0, 8)}</span>
+                <span class="session-time">{new Date(session.created_at * 1000).toLocaleString()}</span>
+              </div>
+              <div class="session-question">{session.question}</div>
+              <div class="session-stats">
+                <span>👥 {session.responses?.length || 0} responses</span>
+                <span>🗳️ {session.votes?.length || 0} votes</span>
+                <span class:consensus={session.consensus_reached}>
+                  {session.consensus_reached ? "✅ Consensus" : "⏳ Deliberating"}
+                </span>
+              </div>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    {:else}
+      <div class="verdicts-list">
+        {#if verdicts.length === 0}
+          <p class="empty-state">No verdicts recorded yet.</p>
+        {:else}
+          {#each verdicts as verdict (verdict.id)}
+            <div class="verdict-card">
+              <div class="verdict-header">
+                <span class="verdict-id">#{verdict.id.slice(0, 8)}</span>
+                <span class="verdict-time">{new Date(verdict.created_at).toLocaleString()}</span>
+                <span class="verdict-confidence">Confidence: {(verdict.confidence * 100).toFixed(0)}%</span>
+              </div>
+              <div class="verdict-question">{verdict.question}</div>
+              <div class="verdict-result">
+                <strong>Verdict:</strong> {verdict.verdict}
+              </div>
+              <div class="verdict-reasoning">
+                {verdict.reasoning}
+              </div>
+              {#if verdict.dissent}
+                <div class="verdict-dissent">
+                  <strong>Dissent:</strong> {verdict.dissent}
+                </div>
+              {/if}
             </div>
-            <div class="session-question">{session.question}</div>
-            <div class="session-stats">
-              <span>👥 {session.responses?.length || 0} responses</span>
-              <span>🗳️ {session.votes?.length || 0} votes</span>
-              <span class:consensus={session.consensus_reached}>
-                {session.consensus_reached ? "✅ Consensus" : "⏳ Deliberating"}
-              </span>
-            </div>
-          </button>
-        {/each}
+          {/each}
+        {/if}
       </div>
     {/if}
   </div>
@@ -653,13 +713,11 @@
     border-color: #00d4ff;
   }
 
-  .agents-section,
-  .sessions-section {
+  .agents-section {
     margin-bottom: 2rem;
   }
 
-  .agents-section h3,
-  .sessions-section h3 {
+  .agents-section h3 {
     margin: 0 0 1rem 0;
     color: #00d4ff;
     font-size: 1.2rem;
@@ -745,10 +803,6 @@
   .start-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  .sessions-section {
-    margin-top: 2rem;
   }
 
   .sessions-list {
@@ -908,7 +962,6 @@
     font-size: 0.9rem;
   }
 
-  .response-round,
   .response-timestamp {
     font-size: 0.8rem;
     color: #888;
@@ -932,5 +985,100 @@
     color: #4caf50;
     line-height: 1.5;
     font-weight: 500;
+  }
+
+  /* Tabs */
+  .history-section {
+    margin-top: 2rem;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab-btn:hover {
+    color: #e0e0e0;
+  }
+
+  .tab-btn.active {
+    color: #00d4ff;
+    border-bottom-color: #00d4ff;
+  }
+
+  /* Verdict Cards */
+  .verdicts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .verdict-card {
+    background: #0f1419;
+    border: 1px solid #333;
+    border-left: 3px solid #4caf50;
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+
+  .verdict-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: #888;
+  }
+
+  .verdict-id {
+    font-family: monospace;
+    color: #4caf50;
+  }
+
+  .verdict-confidence {
+    color: #00d4ff;
+  }
+
+  .verdict-question {
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+  }
+
+  .verdict-result {
+    margin-bottom: 0.75rem;
+    color: #4caf50;
+    font-size: 1.05rem;
+  }
+
+  .verdict-reasoning {
+    color: #ccc;
+    line-height: 1.5;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  .verdict-dissent {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ff9800;
+    font-size: 0.9rem;
+    font-style: italic;
   }
 </style>
