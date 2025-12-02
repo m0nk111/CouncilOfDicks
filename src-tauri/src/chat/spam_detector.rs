@@ -37,11 +37,11 @@ impl Default for SpamDetectorConfig {
 /// Spam score levels and actions
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SpamLevel {
-    Ok,          // 0.0-0.3
-    Warning,     // 0.3-0.5
-    Cooldown5m,  // 0.5-0.7
-    Cooldown1h,  // 0.7-0.9
-    Ban24h,      // 0.9-1.0
+    Ok,         // 0.0-0.3
+    Warning,    // 0.3-0.5
+    Cooldown5m, // 0.5-0.7
+    Cooldown1h, // 0.7-0.9
+    Ban24h,     // 0.9-1.0
 }
 
 impl SpamLevel {
@@ -84,7 +84,8 @@ impl UserSpamState {
 
     fn cleanup(&mut self, now: DateTime<Utc>) {
         // Keep only last hour
-        self.messages.retain(|(ts, _)| now.signed_duration_since(*ts) < Duration::hours(1));
+        self.messages
+            .retain(|(ts, _)| now.signed_duration_since(*ts) < Duration::hours(1));
     }
 
     fn is_banned(&self, now: DateTime<Utc>) -> bool {
@@ -132,12 +133,18 @@ impl SpamDetector {
         let mut users = self.users.lock().unwrap();
         let now = Utc::now();
 
-        let user_state = users.entry(user_id.to_string()).or_insert_with(UserSpamState::new);
+        let user_state = users
+            .entry(user_id.to_string())
+            .or_insert_with(UserSpamState::new);
         user_state.cleanup(now);
 
         // Check if banned
         if user_state.is_banned(now) {
-            let cooldown = user_state.banned_until.unwrap().signed_duration_since(now).num_seconds();
+            let cooldown = user_state
+                .banned_until
+                .unwrap()
+                .signed_duration_since(now)
+                .num_seconds();
             return SpamCheckResult {
                 is_spam: true,
                 spam_score: 1.0,
@@ -160,14 +167,19 @@ impl SpamDetector {
         let rapid_fire_count = self.count_rapid_fire(user_state, now);
         if rapid_fire_count >= self.config.rapid_fire_threshold {
             score += 0.4;
-            reasons.push(format!("Rapid-fire detected: {} messages in {}s", 
-                rapid_fire_count, self.config.rapid_fire_window_seconds));
+            reasons.push(format!(
+                "Rapid-fire detected: {} messages in {}s",
+                rapid_fire_count, self.config.rapid_fire_window_seconds
+            ));
         }
 
         // Check message length
         if message.trim().len() < self.config.min_message_length {
             score += 0.2;
-            reasons.push(format!("Message too short (< {} chars)", self.config.min_message_length));
+            reasons.push(format!(
+                "Message too short (< {} chars)",
+                self.config.min_message_length
+            ));
         }
 
         // Check ALL CAPS
@@ -184,7 +196,10 @@ impl SpamDetector {
 
         // Determine spam level
         let spam_level = SpamLevel::from_score(score);
-        let is_spam = matches!(spam_level, SpamLevel::Cooldown5m | SpamLevel::Cooldown1h | SpamLevel::Ban24h);
+        let is_spam = matches!(
+            spam_level,
+            SpamLevel::Cooldown5m | SpamLevel::Cooldown1h | SpamLevel::Ban24h
+        );
 
         // Apply cooldown if needed
         if let Some(cooldown_seconds) = spam_level.cooldown_seconds() {
@@ -208,7 +223,9 @@ impl SpamDetector {
         let mut users = self.users.lock().unwrap();
         let now = Utc::now();
 
-        let user_state = users.entry(user_id.to_string()).or_insert_with(UserSpamState::new);
+        let user_state = users
+            .entry(user_id.to_string())
+            .or_insert_with(UserSpamState::new);
         user_state.messages.push((now, message.to_string()));
     }
 
@@ -225,7 +242,11 @@ impl SpamDetector {
     /// Count messages in rapid-fire window
     fn count_rapid_fire(&self, user_state: &UserSpamState, now: DateTime<Utc>) -> usize {
         let window = Duration::seconds(self.config.rapid_fire_window_seconds as i64);
-        user_state.messages.iter().filter(|(ts, _)| now.signed_duration_since(*ts) < window).count()
+        user_state
+            .messages
+            .iter()
+            .filter(|(ts, _)| now.signed_duration_since(*ts) < window)
+            .count()
     }
 
     /// Check if message is mostly caps
@@ -244,7 +265,10 @@ impl SpamDetector {
     /// Check for spam keywords
     fn contains_spam_keywords(&self, message: &str) -> bool {
         let lower = message.to_lowercase();
-        self.config.spam_keywords.iter().any(|keyword| lower.contains(keyword))
+        self.config
+            .spam_keywords
+            .iter()
+            .any(|keyword| lower.contains(keyword))
     }
 
     /// Reset user state
@@ -285,7 +309,7 @@ mod tests {
     fn test_detector_allows_normal_message() {
         let detector = SpamDetector::new();
         let result = detector.check_spam("user1", "This is a normal message");
-        
+
         assert!(!result.is_spam);
         assert_eq!(result.spam_level, SpamLevel::Ok);
     }
@@ -293,10 +317,10 @@ mod tests {
     #[test]
     fn test_detector_catches_duplicate() {
         let detector = SpamDetector::new();
-        
+
         detector.record_message("user1", "same message");
         let result = detector.check_spam("user1", "same message");
-        
+
         assert!(result.spam_score > 0.0);
         assert!(result.reasons.iter().any(|r| r.contains("Duplicate")));
     }
@@ -305,7 +329,7 @@ mod tests {
     fn test_detector_catches_short_message() {
         let detector = SpamDetector::new();
         let result = detector.check_spam("user1", "Hi");
-        
+
         assert!(result.spam_score > 0.0);
         assert!(result.reasons.iter().any(|r| r.contains("too short")));
     }
@@ -314,7 +338,7 @@ mod tests {
     fn test_detector_catches_all_caps() {
         let detector = SpamDetector::new();
         let result = detector.check_spam("user1", "THIS IS ALL CAPS MESSAGE");
-        
+
         assert!(result.spam_score > 0.0);
         assert!(result.reasons.iter().any(|r| r.contains("caps")));
     }
@@ -323,7 +347,7 @@ mod tests {
     fn test_detector_catches_spam_keywords() {
         let detector = SpamDetector::new();
         let result = detector.check_spam("user1", "Click here for free money!");
-        
+
         assert!(result.spam_score > 0.0);
         assert!(result.reasons.iter().any(|r| r.contains("spam keywords")));
     }
@@ -331,11 +355,11 @@ mod tests {
     #[test]
     fn test_detector_rapid_fire() {
         let detector = SpamDetector::new();
-        
+
         for i in 0..6 {
             detector.record_message("user1", &format!("Message {}", i));
         }
-        
+
         let result = detector.check_spam("user1", "Another message");
         assert!(result.spam_score > 0.0);
         assert!(result.reasons.iter().any(|r| r.contains("Rapid-fire")));
@@ -344,14 +368,14 @@ mod tests {
     #[test]
     fn test_detector_reset_user() {
         let detector = SpamDetector::new();
-        
+
         detector.record_message("user1", "spam");
         detector.record_message("user1", "spam");
         detector.record_message("user1", "spam");
-        
+
         let result1 = detector.check_spam("user1", "spam");
         assert!(result1.spam_score > 0.0);
-        
+
         detector.reset_user("user1");
         let result2 = detector.check_spam("user1", "normal message");
         assert!(!result2.is_spam);
@@ -361,12 +385,16 @@ mod tests {
     fn test_user_spam_state_cleanup() {
         let mut state = UserSpamState::new();
         let now = Utc::now();
-        
-        state.messages.push((now - Duration::hours(2), "old".to_string()));
-        state.messages.push((now - Duration::minutes(5), "recent".to_string()));
-        
+
+        state
+            .messages
+            .push((now - Duration::hours(2), "old".to_string()));
+        state
+            .messages
+            .push((now - Duration::minutes(5), "recent".to_string()));
+
         state.cleanup(now);
-        
+
         assert_eq!(state.messages.len(), 1);
         assert_eq!(state.messages[0].1, "recent");
     }
@@ -374,14 +402,14 @@ mod tests {
     #[test]
     fn test_banned_user() {
         let detector = SpamDetector::new();
-        
+
         // Trigger high spam score to get banned
         for _ in 0..10 {
             detector.record_message("user1", "spam");
         }
-        
+
         let result = detector.check_spam("user1", "buy now click here");
-        
+
         if result.is_spam && result.cooldown_seconds.is_some() {
             // Now check if banned
             let result2 = detector.check_spam("user1", "normal message");

@@ -99,16 +99,19 @@ pub trait AIProvider: Send + Sync {
     /// Provider identification
     fn name(&self) -> &str;
     fn provider_type(&self) -> ProviderType;
-    
+
     /// Core capabilities
-    async fn generate(&self, request: GenerationRequest) -> Result<GenerationResponse, ProviderError>;
+    async fn generate(
+        &self,
+        request: GenerationRequest,
+    ) -> Result<GenerationResponse, ProviderError>;
     async fn embed(&self, text: &str) -> Result<Vec<f32>, ProviderError>;
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError>;
-    
+
     /// Health & status
     async fn health_check(&self) -> Result<ProviderHealth, ProviderError>;
     fn is_available(&self) -> bool;
-    
+
     /// Configuration
     fn supports_embeddings(&self) -> bool;
     fn supports_streaming(&self) -> bool;

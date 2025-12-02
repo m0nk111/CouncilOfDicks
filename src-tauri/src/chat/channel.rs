@@ -353,7 +353,10 @@ mod tests {
     fn test_channel_type_from_str() {
         assert_eq!(ChannelType::from_str("general"), Some(ChannelType::General));
         assert_eq!(ChannelType::from_str("human"), Some(ChannelType::Human));
-        assert_eq!(ChannelType::from_str("knowledge"), Some(ChannelType::Knowledge));
+        assert_eq!(
+            ChannelType::from_str("knowledge"),
+            Some(ChannelType::Knowledge)
+        );
         assert_eq!(ChannelType::from_str("vote"), Some(ChannelType::Vote));
         assert_eq!(ChannelType::from_str("invalid"), None);
     }

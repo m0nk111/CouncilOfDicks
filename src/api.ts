@@ -1,8 +1,29 @@
-import { invoke } from "@tauri-apps/api/core";
 import { apiCall, isTauriEnvironment } from "./api-adapter";
+
+// Lazy-load Tauri invoke so web builds never touch the global
+type TauriInvoke = typeof import("@tauri-apps/api/core").invoke;
+let cachedInvoke: TauriInvoke | null = null;
+
+async function tauriInvoke<T>(command: string, args?: Record<string, any>): Promise<T> {
+  if (!isTauriEnvironment()) {
+    throw new Error("Tauri API not available in web mode");
+  }
+
+  if (!cachedInvoke) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    cachedInvoke = invoke;
+  }
+
+  return cachedInvoke<T>(command, args || {});
+}
 
 // Re-export for convenience
 export { isTauriEnvironment };
+
+// API base URL for web mode
+const API_BASE_URL = window.location.hostname === "localhost" 
+  ? "http://localhost:8080" 
+  : `http://${window.location.hostname}:8080`;
 
 export interface AppConfig {
   ollama_url: string;
@@ -71,7 +92,7 @@ export async function getConfig(): Promise<AppConfig> {
 
 export async function setDebug(enabled: boolean): Promise<void> {
   if (isTauriEnvironment()) {
-    return await invoke("set_debug", { enabled });
+    return await tauriInvoke("set_debug", { enabled });
   } else {
     // Web mode: not implemented yet (TODO: add to HTTP API)
     console.warn("setDebug not available in web mode");
@@ -79,19 +100,19 @@ export async function setDebug(enabled: boolean): Promise<void> {
 }
 
 export async function getMetrics(): Promise<PerformanceMetrics> {
-  return await invoke("get_metrics");
+  return await tauriInvoke("get_metrics");
 }
 
 export async function p2pStart(): Promise<string> {
-  return await invoke("p2p_start");
+  return await tauriInvoke("p2p_start");
 }
 
 export async function p2pStop(): Promise<string> {
-  return await invoke("p2p_stop");
+  return await tauriInvoke("p2p_stop");
 }
 
 export async function p2pStatus(): Promise<NetworkStatus> {
-  return await invoke("p2p_status");
+  return await tauriInvoke("p2p_status");
 }
 
 // Council session types
@@ -171,7 +192,7 @@ export async function councilAddResponse(
   response: string,
   peerId: string
 ): Promise<string> {
-  return await invoke("council_add_response", {
+  return await tauriInvoke("council_add_response", {
     sessionId,
     modelName,
     response,
@@ -180,24 +201,24 @@ export async function councilAddResponse(
 }
 
 export async function councilStartVoting(sessionId: string): Promise<string> {
-  return await invoke("council_start_voting", { sessionId });
+  return await tauriInvoke("council_start_voting", { sessionId });
 }
 
 export async function councilCalculateConsensus(sessionId: string): Promise<string | null> {
-  return await invoke("council_calculate_consensus", { sessionId });
+  return await tauriInvoke("council_calculate_consensus", { sessionId });
 }
 
 // MCP server commands
 export async function mcpStart(): Promise<string> {
-  return await invoke("mcp_start");
+  return await tauriInvoke("mcp_start");
 }
 
 export async function mcpStop(): Promise<string> {
-  return await invoke("mcp_stop");
+  return await tauriInvoke("mcp_stop");
 }
 
 export async function mcpStatus(): Promise<boolean> {
-  return await invoke("mcp_status");
+  return await tauriInvoke("mcp_status");
 }
 
 // Provider management types
@@ -254,7 +275,7 @@ export async function chatSendMessage(
   signature?: string
 ): Promise<string> {
   if (isTauriEnvironment()) {
-    return await invoke("chat_send_message", {
+    return await tauriInvoke("chat_send_message", {
       channel,
       author,
       authorType,
@@ -262,9 +283,23 @@ export async function chatSendMessage(
       signature,
     });
   } else {
-    // Web mode: TODO - add HTTP endpoint
-    console.warn("chatSendMessage not yet available in web mode");
-    return "message-id-placeholder";
+    // Web mode: use HTTP API
+    const response = await fetch(`${API_BASE_URL}/api/chat/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel,
+        author,
+        author_type: authorType,
+        content,
+        signature,
+      }),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to send message");
+    }
+    return result.data;
   }
 }
 
@@ -274,11 +309,19 @@ export async function chatGetMessages(
   offset: number = 0
 ): Promise<ChatMessage[]> {
   if (isTauriEnvironment()) {
-    return await invoke("chat_get_messages", { channel, limit, offset });
+    return await tauriInvoke("chat_get_messages", { channel, limit, offset });
   } else {
-    // Web mode: TODO - add HTTP endpoint
-    console.warn("chatGetMessages not yet available in web mode");
-    return [];
+    // Web mode: use HTTP API
+    const response = await fetch(`${API_BASE_URL}/api/chat/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, limit, offset }),
+    });
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to get messages");
+    }
+    return result.data;
   }
 }
 
@@ -288,7 +331,7 @@ export async function chatAddReaction(
   emoji: string,
   author: string
 ): Promise<void> {
-  return await invoke("chat_add_reaction", {
+  return await tauriInvoke("chat_add_reaction", {
     channel,
     messageId,
     emoji,
@@ -299,13 +342,13 @@ export async function chatAddReaction(
 export async function chatGetMessageCount(
   channel: ChannelType
 ): Promise<number> {
-  return await invoke("chat_get_message_count", { channel });
+  return await tauriInvoke("chat_get_message_count", { channel });
 }
 
 export async function chatCheckDuplicate(
   question: string
 ): Promise<DuplicateCheckResult> {
-  return await invoke('chat_check_duplicate', { question });
+  return await tauriInvoke('chat_check_duplicate', { question });
 }
 
 // Rate limiting types
@@ -328,45 +371,64 @@ export interface SpamCheckResult {
 
 // Rate limiting API
 export async function chatCheckRateLimit(userId: string): Promise<RateLimitResult> {
-  return await invoke('chat_check_rate_limit', { userId });
+  if (isTauriEnvironment()) {
+    return await tauriInvoke('chat_check_rate_limit', { userId });
+  }
+  console.warn('chatCheckRateLimit: skipping rate limit check in web mode');
+  return { allowed: true };
 }
 
 export async function chatRecordQuestion(userId: string): Promise<void> {
-  return await invoke('chat_record_question', { userId });
+  if (isTauriEnvironment()) {
+    return await tauriInvoke('chat_record_question', { userId });
+  }
+  console.warn('chatRecordQuestion: web mode no-op');
 }
 
 // Spam detection API
 export async function chatCheckSpam(userId: string, message: string): Promise<SpamCheckResult> {
-  return await invoke('chat_check_spam', { userId, message });
+  if (isTauriEnvironment()) {
+    return await tauriInvoke('chat_check_spam', { userId, message });
+  }
+  console.warn('chatCheckSpam: skipping spam check in web mode');
+  return {
+    is_spam: false,
+    spam_score: 0,
+    spam_level: 'Ok',
+    reasons: [],
+  };
 }
 
 export async function chatRecordMessage(userId: string, message: string): Promise<void> {
-  return await invoke('chat_record_message', { userId, message });
+  if (isTauriEnvironment()) {
+    return await tauriInvoke('chat_record_message', { userId, message });
+  }
+  console.warn('chatRecordMessage: web mode no-op');
 }
 
 // Provider management commands
 export async function providerAdd(config: ProviderConfig): Promise<string> {
-  return await invoke("provider_add", { config });
+  return await tauriInvoke("provider_add", { config });
 }
 
 export async function providerList(): Promise<ProviderConfig[]> {
-  return await invoke("provider_list");
+  return await tauriInvoke("provider_list");
 }
 
 export async function providerRemove(id: string): Promise<boolean> {
-  return await invoke("provider_remove", { id });
+  return await tauriInvoke("provider_remove", { id });
 }
 
 export async function providerTestConnection(id: string): Promise<ProviderHealth> {
-  return await invoke("provider_test_connection", { id });
+  return await tauriInvoke("provider_test_connection", { id });
 }
 
 export async function providerSetDefault(providerId: string, purpose: "generation" | "embedding"): Promise<void> {
-  return await invoke("provider_set_default", { providerId, purpose });
+  return await tauriInvoke("provider_set_default", { providerId, purpose });
 }
 
 export async function providerGenerateUsername(modelName: string, providerName: string): Promise<string> {
-  return await invoke("provider_generate_username", { modelName, providerName });
+  return await tauriInvoke("provider_generate_username", { modelName, providerName });
 }
 
 // Agent pool management types
@@ -401,7 +463,7 @@ export async function agentAdd(
 }
 
 export async function agentRemove(agentId: string): Promise<void> {
-  return await apiCall("agent_remove", "POST /api/agents/delete", agentId);
+  return await apiCall("agent_remove", "POST /api/agents/delete", { agent_id: agentId });
 }
 
 export async function agentUpdate(agent: Agent): Promise<void> {
@@ -409,17 +471,37 @@ export async function agentUpdate(agent: Agent): Promise<void> {
 }
 
 export async function agentList(): Promise<Agent[]> {
-  return await apiCall("agent_list", "GET /api/agents");
+  const result = await apiCall<any>("agent_list", "GET /api/agents");
+
+  if (Array.isArray(result)) {
+    return result as Agent[];
+  }
+
+  if (result && typeof result === "object") {
+    if (Array.isArray(result.data)) {
+      return result.data as Agent[];
+    }
+
+    if (Array.isArray((result as any).agents)) {
+      return (result as any).agents as Agent[];
+    }
+  }
+
+  throw new Error("Unexpected agent list response shape");
 }
 
 export async function agentGet(agentId: string): Promise<Agent> {
-  return await invoke("agent_get", { agentId });
+  return await tauriInvoke("agent_get", { agentId });
 }
 
 export async function agentListActive(): Promise<Agent[]> {
-  return await invoke("agent_list_active");
+  return await tauriInvoke("agent_list_active");
 }
 
 export async function agentGetTools(): Promise<Tool[]> {
-  return await invoke("agent_get_tools");
+  return await tauriInvoke("agent_get_tools");
 }
+
+// Aliases for backward compatibility
+export const agentCreate = agentAdd;
+export const agentDelete = agentRemove;

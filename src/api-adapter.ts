@@ -1,11 +1,20 @@
 // Environment detection and API adapter for dual-mode deployment
 // Supports both Tauri native app and web browser access
 
-import { invoke } from "@tauri-apps/api/core";
-
 // Detect if running in Tauri (native app) or web browser
 export function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return typeof window !== 'undefined' && 
+         (window as any).__TAURI_INTERNALS__ !== undefined &&
+         typeof (window as any).__TAURI_INTERNALS__.invoke === 'function';
+}
+
+// Lazy import for Tauri API (only when needed)
+async function getTauriInvoke() {
+  if (!isTauriEnvironment()) {
+    throw new Error("Tauri not available in web mode");
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke;
 }
 
 // Get API base URL for web mode
@@ -26,7 +35,8 @@ export async function apiCall<T>(
   params?: Record<string, any>
 ): Promise<T> {
   if (isTauriEnvironment()) {
-    // Native app: use Tauri invoke
+    // Native app: use Tauri invoke (lazy import)
+    const invoke = await getTauriInvoke();
     return await invoke<T>(tauriCommand, params || {});
   } else {
     // Web browser: use fetch

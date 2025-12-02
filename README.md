@@ -27,19 +27,20 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 - Council deliberation system (multi-round voting + blind voting + consensus)
 - Multi-model deliberation engine (parallel querying, context building, consensus detection)
 - AI personality system (7 archetypes: Pragmatist, Systems Thinker, Skeptic, Ethicist, Realist, Innovator, Mediator)
-- Knowledge Bank with RAG (Ollama embeddings, semantic search, cosine similarity, SQLite storage)
+- Knowledge Bank with RAG (Ollama embeddings, semantic search, cosine similarity, SQLite storage) + council verdict archive (SQLite, queryable via API)
+- Immutable TCOD system context – every LLM call starts with the non-overridable “human-in-the-loop” mission briefing before any user prompt additions
 - Ed25519 cryptographic signatures (response authentication)
 - MCP server integration (JSON-RPC 2.0 on port 9001)
 - Comprehensive logging & metrics (debug mode + performance tracking)
 - **104 backend tests passing**
 
-⏳ **Next Phase (v0.7.0+):**
-- DDoS protection (circuit breakers, proof-of-work, IP whitelisting)
-- CORS & API authentication (JWT tokens, rate limiting by key)
-- Frontend production build (Svelte dist/ in Docker)
-- Proof of Human Value (PoHV) safety mechanisms
-- Reputation/ranking system (5-tier meritocracy)
-- Distributed knowledge bank (IPFS integration)
+⏳ **Next Phase (v0.7.0+):** *(see also `docs/ROADMAP.md` for the detailed plan)*
+- **Council UI + verdict timeline**: Svelte management panel to inspect sessions, stream verdicts from the new store, and manage agent pools inline
+- **Proof of Human Value v1**: human heartbeat challenges, operator acknowledgements, and kill-switch wiring so nodes degrade gracefully without human input
+- **Agent reputation & persistence**: persist agent configs (per-node + optional shared), implement 5-tier merit system, and expose ranking in the UI + MCP tools
+- **Distributed knowledge & replication**: sync council verdicts / embeddings across nodes (SQLite → IPFS snapshots + CRDT-style deltas)
+- **Network/API hardening**: auth + CORS policy, DDoS guardrails (circuit breaker + proof-of-work), signed HTTP calls, production frontend build for Docker
+- **P2P scaling tests**: multi-node simulations, NAT traversal validation, and performance telemetry for gossip mesh
 
 ## 🌟 Core Philosophy
 
@@ -71,12 +72,14 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 ✅ **Multi-model deliberation** - Parallel AI querying with context building between rounds  
 ✅ **AI personality system** - 7 archetypes for diverse perspectives (Pragmatist, Skeptic, Ethicist, etc.)  
 ✅ **Knowledge Bank with RAG** - Semantic search with Ollama embeddings, inject past decisions into context  
+✅ **Council verdict archive** - Each consensus stored in SQLite, queryable via API, powers future knowledge sync  
 ✅ **Ask Ollama models** - Query any Ollama-compatible AI model  
 ✅ **Create council sessions** - Multi-round deliberation with blind voting  
 ✅ **P2P networking** - Join mesh network, discover local peers  
 ✅ **Sign responses** - Cryptographic proof of response integrity  
 ✅ **MCP integration** - External AI agents can use council as a tool  
 ✅ **Performance metrics** - Track request times, rolling averages  
+✅ **Immutable TCOD system context** - Every LLM call starts with the Council’s mission briefing before per-agent prompts  
 ⏳ **Chat commands** - /ask, /search, /session (in dev)  
 ⏳ **Distributed KB** - IPFS integration for decentralized knowledge (planned)
 
@@ -158,6 +161,11 @@ Instead of asking one AI and hoping for a good answer, TCOD:
 - Noise protocol for P2P communication
 - All messages encrypted in transit
 - Peer authentication via libp2p
+
+✅ **Immutable System Context (v0.6.0)**
+- Every LLM call now begins with the same TCOD environment briefing: decentralized P2P network, Proof of Human Value requirements, and “humans stay in control” directive
+- User-provided system prompts are treated as addenda, never replacements, so hostile overrides can’t strip away mission or safety language
+- Applies to council sessions, chat agents, on-demand `/ask` calls, and provider integrations
 
 ### Planned (Proof of Human Value - PoHV)
 

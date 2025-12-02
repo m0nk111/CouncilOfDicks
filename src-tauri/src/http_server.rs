@@ -6,7 +6,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -50,19 +50,16 @@ pub struct HttpServer {
 
 impl HttpServer {
     pub fn new(config: HttpServerConfig, state: Arc<AppState>) -> Self {
-        Self { 
-            config, 
-            state,
-        }
+        Self { config, state }
     }
 
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
         let addr = format!("{}:{}", self.config.host, self.config.port);
         let router = self.build_router();
         let listener = tokio::net::TcpListener::bind(&addr).await?;
-        
+
         println!("✅ HTTP server listening on {}", addr);
-        
+
         axum::serve(listener, router).await?;
         Ok(())
     }
@@ -71,16 +68,12 @@ impl HttpServer {
         let mut router = Router::new()
             // Health check
             .route("/health", get(health_check))
-            
             // Ollama API
             .route("/api/ollama/ask", post(ollama_ask))
-            
             // Config API
             .route("/api/config", get(config_get))
-            
             // WebSocket for real-time chat
             .route("/ws/chat", get(websocket_handler))
-            
             // Static files (for web UI)
             .fallback(static_handler);
 
@@ -90,7 +83,7 @@ impl HttpServer {
                 CorsLayer::new()
                     .allow_origin(Any)
                     .allow_methods(Any)
-                    .allow_headers(Any)
+                    .allow_headers(Any),
             );
         }
 
@@ -114,10 +107,14 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             ApiError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
-        
-        (status, Json(serde_json::json!({
-            "error": message
-        }))).into_response()
+
+        (
+            status,
+            Json(serde_json::json!({
+                "error": message
+            })),
+        )
+            .into_response()
     }
 }
 
@@ -157,17 +154,15 @@ async fn ollama_ask(
 ) -> Result<Json<OllamaAskResponse>, ApiError> {
     let config = state.get_config();
     let model = req.model.unwrap_or(config.ollama_model.clone());
-    
+
     let response = crate::ollama::ask_ollama_internal(&state, model, req.prompt)
         .await
         .map_err(|e| ApiError::InternalError(e))?;
-    
+
     Ok(Json(OllamaAskResponse { response }))
 }
 
-async fn config_get(
-    State(state): State<Arc<AppState>>,
-) -> Json<ConfigResponse> {
+async fn config_get(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
     let config = state.get_config();
     Json(ConfigResponse {
         ollama_url: config.ollama_url.clone(),
@@ -180,22 +175,23 @@ async fn static_handler() -> impl IntoResponse {
     // Serve test page from workspace root
     // TODO: Serve production frontend from dist/ when built
     let test_page_path = std::path::PathBuf::from("./test-web-mode.html");
-    
+
     if test_page_path.exists() {
         match tokio::fs::read_to_string(test_page_path).await {
             Ok(content) => {
                 return (
                     StatusCode::OK,
                     [(header::CONTENT_TYPE, "text/html")],
-                    content
-                ).into_response();
+                    content,
+                )
+                    .into_response();
             }
             Err(_) => {
                 // Fall through to default page
             }
         }
     }
-    
+
     // Fallback: simple API documentation page
     let fallback_html = r#"<!DOCTYPE html>
 <html>
@@ -232,8 +228,9 @@ async fn static_handler() -> impl IntoResponse {
     (
         StatusCode::OK,
         [(header::CONTENT_TYPE, "text/html")],
-        fallback_html
-    ).into_response()
+        fallback_html,
+    )
+        .into_response()
 }
 
 // ========================================
@@ -249,25 +246,26 @@ async fn websocket_handler(
 }
 
 /// Handle individual WebSocket connection
-async fn websocket_connection(
-    mut socket: WebSocket,
-    state: Arc<AppState>,
-) {
+async fn websocket_connection(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.websocket_broadcast.subscribe();
-    
+
     // Send welcome message
     let welcome = serde_json::json!({
         "type": "welcome",
         "message": "Connected to Council Of Dicks chat"
     });
-    
-    if socket.send(Message::Text(welcome.to_string())).await.is_err() {
+
+    if socket
+        .send(Message::Text(welcome.to_string()))
+        .await
+        .is_err()
+    {
         return;
     }
-    
+
     // Forward broadcast messages to this client
     let mut send_socket = socket;
-    
+
     tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -283,7 +281,7 @@ async fn websocket_connection(
                                     continue;
                                 }
                             };
-                            
+
                             if send_socket.send(Message::Text(json)).await.is_err() {
                                 // Client disconnected
                                 break;
@@ -297,7 +295,7 @@ async fn websocket_connection(
                         }
                     }
                 }
-                
+
                 // Receive messages from client (for future bidirectional chat)
                 result = send_socket.recv() => {
                     match result {
@@ -313,7 +311,7 @@ async fn websocket_connection(
                 }
             }
         }
-        
+
         println!("🔌 WebSocket client disconnected");
     });
 }

@@ -1,14 +1,11 @@
 // Council session manager for multi-round deliberation
 
 use crate::agents::{Agent, AgentPool};
-use crate::protocol::{
-    CouncilResponse, CouncilSession, SessionStatus,
-    VoteCommitment, VoteReveal,
-};
+use crate::protocol::{CouncilResponse, CouncilSession, SessionStatus, VoteCommitment, VoteReveal};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use sha2::{Sha256, Digest};
 
 /// Manages council deliberation sessions
 pub struct CouncilSessionManager {
@@ -46,7 +43,7 @@ impl CouncilSessionManager {
 
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.clone(), session);
-        
+
         session_id
     }
 
@@ -61,9 +58,7 @@ impl CouncilSessionManager {
         public_key: Option<String>,
     ) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::GatheringResponses {
             return Err("Session not in response gathering phase".to_string());
@@ -89,9 +84,7 @@ impl CouncilSessionManager {
     /// Move session to commitment phase
     pub async fn start_commitment_phase(&self, session_id: &str) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::GatheringResponses {
             return Err("Session not in response gathering phase".to_string());
@@ -113,9 +106,7 @@ impl CouncilSessionManager {
         voter_peer_id: String,
     ) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::CommitmentPhase {
             return Err("Session not in commitment phase".to_string());
@@ -132,9 +123,7 @@ impl CouncilSessionManager {
     /// Move session to reveal phase
     pub async fn start_reveal_phase(&self, session_id: &str) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::CommitmentPhase {
             return Err("Session not in commitment phase".to_string());
@@ -157,9 +146,7 @@ impl CouncilSessionManager {
         voter_peer_id: String,
     ) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::RevealPhase {
             return Err("Session not in reveal phase".to_string());
@@ -189,9 +176,7 @@ impl CouncilSessionManager {
     /// Calculate consensus if threshold reached
     pub async fn calculate_consensus(&self, session_id: &str) -> Result<Option<String>, String> {
         let mut sessions = self.sessions.lock().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or("Session not found")?;
+        let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
         if session.status != SessionStatus::RevealPhase {
             return Err("Session not in reveal phase".to_string());
@@ -267,16 +252,13 @@ impl CouncilSessionManager {
         ollama_url: &str,
     ) -> Result<String, String> {
         self.create_session_with_agents_and_timeout(
-            question,
-            agent_pool,
-            agent_ids,
-            ollama_url,
-            30, // Default 30 second timeout
-        ).await
+            question, agent_pool, agent_ids, ollama_url, 30, // Default 30 second timeout
+        )
+        .await
     }
-    
+
     /// Create session with agents and configurable timeout for stragglers
-    /// 
+    ///
     /// Deliberation flow:
     /// 1. All agents race to respond (parallel)
     /// 2. First agent to respond must wait for others
@@ -290,45 +272,42 @@ impl CouncilSessionManager {
         timeout_seconds: u64,
     ) -> Result<String, String> {
         use tokio::time::{timeout, Duration};
-        
+
         // Create session
         let session_id = self.create_session(question.clone()).await;
-        
+
         // Get agents
         let agents = agent_pool.get_agents_by_ids(&agent_ids).await?;
-        
+
         if agents.is_empty() {
             return Err("No agents specified".to_string());
         }
-        
+
         let total_agents = agents.len();
-        
+
         // Gather responses from all agents in parallel with timeout
         let mut handles = Vec::new();
-        
+
         for agent in agents {
             let session_id = session_id.clone();
             let question = question.clone();
             let ollama_url = ollama_url.to_string();
             let self_clone = self.clone();
-            
+
             let handle = tokio::spawn(async move {
-                self_clone.gather_agent_response(
-                    &session_id,
-                    &agent,
-                    &question,
-                    &ollama_url,
-                ).await
+                self_clone
+                    .gather_agent_response(&session_id, &agent, &question, &ollama_url)
+                    .await
             });
-            
+
             handles.push(handle);
         }
-        
+
         // Wait for all responses with timeout
         let wait_future = async {
             let mut success_count = 0;
             let mut error_count = 0;
-            
+
             for handle in handles {
                 match handle.await {
                     Ok(Ok(_)) => success_count += 1,
@@ -342,41 +321,49 @@ impl CouncilSessionManager {
                     }
                 }
             }
-            
+
             (success_count, error_count)
         };
-        
-        let (success_count, error_count) = match timeout(Duration::from_secs(timeout_seconds), wait_future).await {
-            Ok((success, errors)) => {
-                if success > 0 {
-                    println!("✅ Council round complete: {} responded, {} failed", success, errors);
+
+        let (success_count, error_count) =
+            match timeout(Duration::from_secs(timeout_seconds), wait_future).await {
+                Ok((success, errors)) => {
+                    if success > 0 {
+                        println!(
+                            "✅ Council round complete: {} responded, {} failed",
+                            success, errors
+                        );
+                    }
+                    (success, errors)
                 }
-                (success, errors)
-            }
-            Err(_) => {
-                // Timeout - some agents are still thinking
-                let current_responses = self.get_session(&session_id).await
-                    .map(|s| s.responses.len())
-                    .unwrap_or(0);
-                
-                eprintln!("⏱️ Timeout after {}s: {}/{} agents responded", 
-                    timeout_seconds, current_responses, total_agents);
-                
-                if current_responses == 0 {
-                    return Err(format!("No agents responded within {}s", timeout_seconds));
+                Err(_) => {
+                    // Timeout - some agents are still thinking
+                    let current_responses = self
+                        .get_session(&session_id)
+                        .await
+                        .map(|s| s.responses.len())
+                        .unwrap_or(0);
+
+                    eprintln!(
+                        "⏱️ Timeout after {}s: {}/{} agents responded",
+                        timeout_seconds, current_responses, total_agents
+                    );
+
+                    if current_responses == 0 {
+                        return Err(format!("No agents responded within {}s", timeout_seconds));
+                    }
+
+                    (current_responses, total_agents - current_responses)
                 }
-                
-                (current_responses, total_agents - current_responses)
-            }
-        };
-        
+            };
+
         if success_count == 0 {
             return Err("No agents provided responses".to_string());
         }
-        
+
         Ok(session_id)
     }
-    
+
     /// Gather response from a single agent
     async fn gather_agent_response(
         &self,
@@ -387,24 +374,21 @@ impl CouncilSessionManager {
     ) -> Result<(), String> {
         // Build prompt with agent's system context
         let prompt = agent.build_prompt(question, None);
-        
+
         // Call Ollama API
-        let response = crate::ollama::ask_ollama(
-            ollama_url,
-            &agent.model,
-            prompt,
-        ).await?;
-        
+        let response = crate::ollama::ask_ollama(ollama_url, &agent.model, prompt).await?;
+
         // Add response to session
         self.add_response(
             session_id,
             agent.name.clone(),
             response,
             agent.id.clone(), // Use agent ID as peer ID
-            None, // TODO: Add signature support
+            None,             // TODO: Add signature support
             None,
-        ).await?;
-        
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -427,10 +411,10 @@ mod tests {
     async fn test_session_creation() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test question?".to_string()).await;
-        
+
         let session = manager.get_session(&session_id).await;
         assert!(session.is_some());
-        
+
         let session = session.unwrap();
         assert_eq!(session.question, "Test question?");
         assert_eq!(session.status, SessionStatus::GatheringResponses);
@@ -441,13 +425,20 @@ mod tests {
     async fn test_add_response() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test?".to_string()).await;
-        
+
         let result = manager
-            .add_response(&session_id, "model1".to_string(), "answer1".to_string(), "peer1".to_string(), None, None)
+            .add_response(
+                &session_id,
+                "model1".to_string(),
+                "answer1".to_string(),
+                "peer1".to_string(),
+                None,
+                None,
+            )
             .await;
-        
+
         assert!(result.is_ok());
-        
+
         let session = manager.get_session(&session_id).await.unwrap();
         assert_eq!(session.responses.len(), 1);
         assert_eq!(session.responses[0].response, "answer1");
@@ -457,15 +448,22 @@ mod tests {
     async fn test_commitment_phase() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test?".to_string()).await;
-        
+
         manager
-            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string(), None, None)
+            .add_response(
+                &session_id,
+                "model1".to_string(),
+                "answer".to_string(),
+                "peer1".to_string(),
+                None,
+                None,
+            )
             .await
             .unwrap();
-        
+
         let result = manager.start_commitment_phase(&session_id).await;
         assert!(result.is_ok());
-        
+
         let session = manager.get_session(&session_id).await.unwrap();
         assert_eq!(session.status, SessionStatus::CommitmentPhase);
     }
@@ -474,34 +472,46 @@ mod tests {
     async fn test_blind_voting() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test?".to_string()).await;
-        
+
         // Setup session
         manager
-            .add_response(&session_id, "model1".to_string(), "answer".to_string(), "peer1".to_string(), None, None)
+            .add_response(
+                &session_id,
+                "model1".to_string(),
+                "answer".to_string(),
+                "peer1".to_string(),
+                None,
+                None,
+            )
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();
-        
+
         // Create commitment
         let vote = "answer1";
         let salt = "random_salt_123";
         let commitment = manager.hash_vote(vote, salt);
-        
+
         manager
             .add_commitment(&session_id, commitment.clone(), "peer1".to_string())
             .await
             .unwrap();
-        
+
         // Move to reveal
         manager.start_reveal_phase(&session_id).await.unwrap();
-        
+
         // Reveal vote
         let result = manager
-            .add_reveal(&session_id, vote.to_string(), salt.to_string(), "peer1".to_string())
+            .add_reveal(
+                &session_id,
+                vote.to_string(),
+                salt.to_string(),
+                "peer1".to_string(),
+            )
             .await;
-        
+
         assert!(result.is_ok());
-        
+
         let session = manager.get_session(&session_id).await.unwrap();
         assert_eq!(session.reveals.len(), 1);
     }
@@ -510,29 +520,36 @@ mod tests {
     async fn test_consensus_calculation() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test?".to_string()).await;
-        
+
         // Setup
         manager
-            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string(), None, None)
+            .add_response(
+                &session_id,
+                "m1".to_string(),
+                "a".to_string(),
+                "p1".to_string(),
+                None,
+                None,
+            )
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();
-        
+
         // Add 3 votes for same answer (100% consensus)
         for i in 1..=3 {
             let salt = format!("salt_{}", i);
             let vote = "answer_a";
             let commitment = manager.hash_vote(vote, &salt);
             let peer_id = format!("peer{}", i);
-            
+
             manager
                 .add_commitment(&session_id, commitment, peer_id.clone())
                 .await
                 .unwrap();
         }
-        
+
         manager.start_reveal_phase(&session_id).await.unwrap();
-        
+
         for i in 1..=3 {
             let salt = format!("salt_{}", i);
             let peer_id = format!("peer{}", i);
@@ -541,11 +558,11 @@ mod tests {
                 .await
                 .unwrap();
         }
-        
+
         let consensus = manager.calculate_consensus(&session_id).await.unwrap();
         assert!(consensus.is_some());
         assert_eq!(consensus.unwrap(), "answer_a");
-        
+
         let session = manager.get_session(&session_id).await.unwrap();
         assert_eq!(session.status, SessionStatus::ConsensusReached);
     }
@@ -554,29 +571,36 @@ mod tests {
     async fn test_no_consensus() {
         let manager = CouncilSessionManager::new();
         let session_id = manager.create_session("Test?".to_string()).await;
-        
+
         // Setup
         manager
-            .add_response(&session_id, "m1".to_string(), "a".to_string(), "p1".to_string(), None, None)
+            .add_response(
+                &session_id,
+                "m1".to_string(),
+                "a".to_string(),
+                "p1".to_string(),
+                None,
+                None,
+            )
             .await
             .unwrap();
         manager.start_commitment_phase(&session_id).await.unwrap();
-        
+
         // Add 3 different votes (no consensus)
         for i in 1..=3 {
             let salt = format!("salt_{}", i);
             let vote = format!("answer_{}", i);
             let commitment = manager.hash_vote(&vote, &salt);
             let peer_id = format!("peer{}", i);
-            
+
             manager
                 .add_commitment(&session_id, commitment, peer_id.clone())
                 .await
                 .unwrap();
         }
-        
+
         manager.start_reveal_phase(&session_id).await.unwrap();
-        
+
         for i in 1..=3 {
             let salt = format!("salt_{}", i);
             let vote = format!("answer_{}", i);
@@ -586,7 +610,7 @@ mod tests {
                 .await
                 .unwrap();
         }
-        
+
         let consensus = manager.calculate_consensus(&session_id).await.unwrap();
         assert!(consensus.is_none());
     }
@@ -594,10 +618,10 @@ mod tests {
     #[tokio::test]
     async fn test_agent_pool_integration() {
         use crate::agents::{Agent, AgentPool};
-        
+
         let manager = CouncilSessionManager::new();
         let pool = Arc::new(AgentPool::new());
-        
+
         // Add test agents
         let agent1 = Agent::new(
             "Test Agent 1".to_string(),
@@ -609,19 +633,21 @@ mod tests {
             "test-model".to_string(),
             "You are a critical thinker.".to_string(),
         );
-        
+
         let agent1_id = pool.add_agent(agent1).await.unwrap();
         let agent2_id = pool.add_agent(agent2).await.unwrap();
-        
+
         // Note: This test verifies the API exists, but won't actually call Ollama
         // In a real scenario, you'd mock the Ollama client
-        let result = manager.create_session_with_agents(
-            "Test question?".to_string(),
-            pool,
-            vec![agent1_id, agent2_id],
-            "http://localhost:11434", // Won't actually connect in unit tests
-        ).await;
-        
+        let result = manager
+            .create_session_with_agents(
+                "Test question?".to_string(),
+                pool,
+                vec![agent1_id, agent2_id],
+                "http://localhost:11434", // Won't actually connect in unit tests
+            )
+            .await;
+
         // We expect this to fail since Ollama isn't running, but the API should be callable
         assert!(result.is_err() || result.is_ok());
     }

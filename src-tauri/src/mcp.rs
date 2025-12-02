@@ -16,13 +16,13 @@ use crate::logger::Logger;
 enum McpRequest {
     #[serde(rename = "council/ask")]
     Ask { id: u64, params: AskParams },
-    
+
     #[serde(rename = "council/get_session")]
     GetSession { id: u64, params: GetSessionParams },
-    
+
     #[serde(rename = "council/list_sessions")]
     ListSessions { id: u64 },
-    
+
     #[serde(rename = "tools/list")]
     ListTools { id: u64 },
 }
@@ -76,7 +76,11 @@ pub struct McpServer {
 
 impl McpServer {
     /// Create new MCP server
-    pub fn new(port: u16, council_manager: Arc<CouncilSessionManager>, logger: Arc<Logger>) -> Self {
+    pub fn new(
+        port: u16,
+        council_manager: Arc<CouncilSessionManager>,
+        logger: Arc<Logger>,
+    ) -> Self {
         // Generate random auth token on startup
         use rand::Rng;
         let token: String = rand::thread_rng()
@@ -84,10 +88,13 @@ impl McpServer {
             .take(32)
             .map(char::from)
             .collect();
-        
+
         logger.success("mcp_server", &format!("🔐 MCP Auth Token: {}", token));
-        logger.info("mcp_server", "Include this token in X-Auth-Token header for MCP requests");
-        
+        logger.info(
+            "mcp_server",
+            "Include this token in X-Auth-Token header for MCP requests",
+        );
+
         Self {
             port,
             council_manager,
@@ -100,7 +107,7 @@ impl McpServer {
     /// Start MCP server
     pub async fn start(&self) -> Result<String, String> {
         let mut listener_guard = self.listener.lock().await;
-        
+
         if listener_guard.is_some() {
             return Err("MCP server already running".to_string());
         }
@@ -110,8 +117,9 @@ impl McpServer {
             .await
             .map_err(|e| format!("Failed to bind MCP server: {}", e))?;
 
-        self.logger.success("mcp_server", &format!("MCP server listening on {}", addr));
-        
+        self.logger
+            .success("mcp_server", &format!("MCP server listening on {}", addr));
+
         *listener_guard = Some(listener);
         Ok(format!("MCP server started on {}", addr))
     }
@@ -119,14 +127,14 @@ impl McpServer {
     /// Stop MCP server
     pub async fn stop(&self) -> Result<String, String> {
         let mut listener_guard = self.listener.lock().await;
-        
+
         if listener_guard.is_none() {
             return Err("MCP server not running".to_string());
         }
 
         *listener_guard = None;
         self.logger.info("mcp_server", "MCP server stopped");
-        
+
         Ok("MCP server stopped".to_string())
     }
 
@@ -138,22 +146,25 @@ impl McpServer {
     /// Accept and handle connections (call this in a loop)
     pub async fn accept_connection(&self) -> Result<(), String> {
         let listener_guard = self.listener.lock().await;
-        
+
         if let Some(listener) = listener_guard.as_ref() {
             match listener.accept().await {
                 Ok((stream, addr)) => {
-                    self.logger.debug("mcp_server", &format!("MCP client connected: {}", addr));
+                    self.logger
+                        .debug("mcp_server", &format!("MCP client connected: {}", addr));
                     drop(listener_guard); // Release lock before handling
-                    
+
                     let council_manager = self.council_manager.clone();
                     let logger = self.logger.clone();
-                    
+
                     tokio::spawn(async move {
-                        if let Err(e) = Self::handle_client(stream, council_manager, logger.clone()).await {
+                        if let Err(e) =
+                            Self::handle_client(stream, council_manager, logger.clone()).await
+                        {
                             logger.error("mcp_client", &format!("MCP client error: {}", e));
                         }
                     });
-                    
+
                     Ok(())
                 }
                 Err(e) => Err(format!("Failed to accept connection: {}", e)),
@@ -172,7 +183,7 @@ impl McpServer {
         let (reader, mut writer) = stream.into_split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        
+
         // Note: For full auth implementation, we'd need to parse HTTP headers here
         // For now, we rely on localhost binding as the primary security mechanism
         // TODO: Add proper header parsing for X-Auth-Token validation
@@ -191,7 +202,9 @@ impl McpServer {
 
                     // Parse request
                     let response = match serde_json::from_str::<McpRequest>(trimmed) {
-                        Ok(req) => Self::handle_request(req, council_manager.clone(), logger.clone()).await,
+                        Ok(req) => {
+                            Self::handle_request(req, council_manager.clone(), logger.clone()).await
+                        }
                         Err(e) => McpResponse {
                             jsonrpc: "2.0".to_string(),
                             id: 0,
@@ -206,13 +219,20 @@ impl McpServer {
                     // Send response
                     let response_json = serde_json::to_string(&response)
                         .map_err(|e| format!("Failed to serialize response: {}", e))?;
-                    
-                    writer.write_all(response_json.as_bytes()).await
+
+                    writer
+                        .write_all(response_json.as_bytes())
+                        .await
                         .map_err(|e| format!("Failed to write response: {}", e))?;
-                    writer.write_all(b"\n").await
+                    writer
+                        .write_all(b"\n")
+                        .await
                         .map_err(|e| format!("Failed to write newline: {}", e))?;
-                    
-                    logger.debug("mcp_server", &format!("MCP response sent: {}", response_json));
+
+                    logger.debug(
+                        "mcp_server",
+                        &format!("MCP response sent: {}", response_json),
+                    );
                 }
                 Err(e) => {
                     logger.error("mcp_client", &format!("Failed to read from client: {}", e));
@@ -233,12 +253,14 @@ impl McpServer {
         match request {
             McpRequest::Ask { id, params } => {
                 logger.info("mcp_handler", &format!("MCP Ask: {}", params.question));
-                
-                let session_id = council_manager.create_session(params.question.clone()).await;
-                
+
+                let session_id = council_manager
+                    .create_session(params.question.clone())
+                    .await;
+
                 // TODO: If wait_for_consensus, wait for consensus to be reached
                 // For now, just return session ID
-                
+
                 McpResponse {
                     jsonrpc: "2.0".to_string(),
                     id,
@@ -251,10 +273,13 @@ impl McpServer {
                     error: None,
                 }
             }
-            
+
             McpRequest::GetSession { id, params } => {
-                logger.debug("mcp_handler", &format!("MCP GetSession: {}", params.session_id));
-                
+                logger.debug(
+                    "mcp_handler",
+                    &format!("MCP GetSession: {}", params.session_id),
+                );
+
                 match council_manager.get_session(&params.session_id).await {
                     Some(session) => McpResponse {
                         jsonrpc: "2.0".to_string(),
@@ -273,12 +298,12 @@ impl McpServer {
                     },
                 }
             }
-            
+
             McpRequest::ListSessions { id } => {
                 logger.debug("mcp_handler", "MCP ListSessions");
-                
+
                 let sessions = council_manager.list_sessions().await;
-                
+
                 McpResponse {
                     jsonrpc: "2.0".to_string(),
                     id,
@@ -286,10 +311,10 @@ impl McpServer {
                     error: None,
                 }
             }
-            
+
             McpRequest::ListTools { id } => {
                 logger.debug("mcp_handler", "MCP ListTools");
-                
+
                 let tools = vec![
                     McpTool {
                         name: "council_ask".to_string(),
@@ -333,7 +358,7 @@ impl McpServer {
                         }),
                     },
                 ];
-                
+
                 McpResponse {
                     jsonrpc: "2.0".to_string(),
                     id,
@@ -354,7 +379,7 @@ mod tests {
         let council_manager = Arc::new(CouncilSessionManager::new());
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9001, council_manager, logger);
-        
+
         assert!(!mcp.is_running().await);
     }
 
@@ -363,12 +388,12 @@ mod tests {
         let council_manager = Arc::new(CouncilSessionManager::new());
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9001, council_manager, logger);
-        
+
         // Start server
         let result = mcp.start().await;
         assert!(result.is_ok());
         assert!(mcp.is_running().await);
-        
+
         // Stop server
         let result = mcp.stop().await;
         assert!(result.is_ok());
@@ -380,11 +405,11 @@ mod tests {
         let council_manager = Arc::new(CouncilSessionManager::new());
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9002, council_manager, logger);
-        
+
         mcp.start().await.unwrap();
         let result = mcp.start().await;
         assert!(result.is_err());
-        
+
         mcp.stop().await.unwrap();
     }
 }

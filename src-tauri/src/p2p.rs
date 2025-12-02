@@ -2,10 +2,10 @@
 // Decentralized mesh network using libp2p
 
 use libp2p::{
+    futures::StreamExt,
     gossipsub, identify, kad, mdns, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId, Swarm, Transport,
-    futures::StreamExt,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
@@ -61,10 +61,7 @@ impl P2PNetwork {
         )?;
 
         // Configure mDNS for local peer discovery
-        let mdns = mdns::tokio::Behaviour::new(
-            mdns::Config::default(),
-            local_peer_id,
-        )?;
+        let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
 
         // Configure Identify protocol
         let identify = identify::Behaviour::new(
@@ -74,10 +71,7 @@ impl P2PNetwork {
 
         // Configure Kademlia DHT
         let store = kad::store::MemoryStore::new(local_peer_id);
-        let kademlia = kad::Behaviour::new(
-            local_peer_id,
-            store,
-        );
+        let kademlia = kad::Behaviour::new(local_peer_id, store);
 
         // Combine all behaviors
         let behaviour = CouncilBehaviour {
@@ -123,7 +117,10 @@ impl P2PNetwork {
     /// Publish message to topic
     pub fn publish(&mut self, topic: &str, message: Vec<u8>) -> Result<(), Box<dyn Error>> {
         let topic = gossipsub::IdentTopic::new(topic);
-        self.swarm.behaviour_mut().gossipsub.publish(topic, message)?;
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(topic, message)?;
         Ok(())
     }
 
@@ -151,7 +148,7 @@ mod tests {
     async fn test_p2p_network_creation() {
         let result = P2PNetwork::new().await;
         assert!(result.is_ok());
-        
+
         let network = result.unwrap();
         assert_eq!(network.connected_peers(), 0);
     }
@@ -160,7 +157,7 @@ mod tests {
     async fn test_peer_id_generation() {
         let network1 = P2PNetwork::new().await.unwrap();
         let network2 = P2PNetwork::new().await.unwrap();
-        
+
         // Each instance should have unique peer ID
         assert_ne!(network1.local_peer_id(), network2.local_peer_id());
     }

@@ -3,7 +3,6 @@
   import {
     agentList,
     agentCreate,
-    agentUpdate,
     agentDelete,
     councilCreateSessionWithAgents,
     councilGetSession,
@@ -18,6 +17,12 @@
   let loading = false;
   let error = "";
   let activeSessionId = "";
+  
+  // Add agent form
+  let showAddAgent = false;
+  let newAgentName = "";
+  let newAgentModel = "qwen2.5-coder:7b";
+  let newAgentPrompt = "";
 
   // Load initial data
   onMount(async () => {
@@ -88,13 +93,73 @@
     }
   }
 
+  let activeSession: any = null;
+
   async function viewSession(sessionId: string) {
     activeSessionId = sessionId;
     try {
-      const session = await councilGetSession(sessionId);
-      console.log("Session details:", session);
+      activeSession = await councilGetSession(sessionId);
+      console.log("Session details:", activeSession);
     } catch (e: any) {
       error = `Failed to load session: ${e}`;
+      activeSession = null;
+    }
+  }
+
+  async function handleAddAgent() {
+    if (!newAgentName.trim()) {
+      error = "Agent name is required";
+      return;
+    }
+    if (!newAgentModel.trim()) {
+      error = "Model name is required";
+      return;
+    }
+
+    loading = true;
+    error = "";
+
+    try {
+      const agentId = await agentCreate(
+        newAgentName,
+        newAgentModel,
+        newAgentPrompt || `You are ${newAgentName}, an AI assistant.`
+      );
+      console.log("Agent created:", agentId);
+      
+      // Reset form and reload
+      newAgentName = "";
+      newAgentModel = "qwen2.5-coder:7b";
+      newAgentPrompt = "";
+      showAddAgent = false;
+      
+      await loadAgents();
+    } catch (e: any) {
+      error = `Failed to create agent: ${e}`;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleDeleteAgent(agentId: string) {
+    if (!confirm("Are you sure you want to delete this agent?")) {
+      return;
+    }
+
+    loading = true;
+    error = "";
+
+    try {
+      await agentDelete(agentId);
+      await loadAgents();
+      
+      // Remove from selection if it was selected
+      selectedAgents.delete(agentId);
+      selectedAgents = selectedAgents;
+    } catch (e: any) {
+      error = `Failed to delete agent: ${e}`;
+    } finally {
+      loading = false;
     }
   }
 </script>
@@ -108,6 +173,95 @@
   {#if error}
     <div class="error-banner">{error}</div>
   {/if}
+
+  <!-- Agent Management -->
+  <div class="agents-management">
+    <div class="section-header">
+      <h3>🤖 Available Agents</h3>
+      <button 
+        class="btn-add-agent" 
+        on:click={() => showAddAgent = !showAddAgent}
+        disabled={loading}
+      >
+        {showAddAgent ? "✖ Cancel" : "+ Add Agent"}
+      </button>
+    </div>
+
+    {#if showAddAgent}
+      <div class="add-agent-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="agent-name">Agent Name *</label>
+            <input
+              id="agent-name"
+              type="text"
+              bind:value={newAgentName}
+              placeholder="e.g., Qwen Coder"
+              disabled={loading}
+            />
+          </div>
+          <div class="form-group">
+            <label for="agent-model">Ollama Model *</label>
+            <input
+              id="agent-model"
+              type="text"
+              bind:value={newAgentModel}
+              placeholder="qwen2.5-coder:7b"
+              disabled={loading}
+            />
+            <span class="field-hint">Must be available on Ollama server</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="agent-prompt">System Prompt (optional)</label>
+          <textarea
+            id="agent-prompt"
+            bind:value={newAgentPrompt}
+            placeholder="e.g., You are an expert programmer specializing in Rust..."
+            rows="3"
+            disabled={loading}
+          ></textarea>
+        </div>
+        <div class="form-actions">
+          <button 
+            class="btn-create" 
+            on:click={handleAddAgent}
+            disabled={loading || !newAgentName.trim() || !newAgentModel.trim()}
+          >
+            {loading ? "⏳ Creating..." : "✅ Create Agent"}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if agents.length === 0}
+      <p class="empty-state">No agents yet. Create one above to get started.</p>
+    {:else}
+      <div class="agents-list">
+        {#each agents as agent (agent.id)}
+          <div class="agent-item">
+            <div class="agent-info">
+              <div class="agent-header">
+                <span class="agent-name">{agent.name}</span>
+                <button 
+                  class="btn-delete-agent" 
+                  on:click={() => handleDeleteAgent(agent.id)}
+                  disabled={loading}
+                  title="Delete agent"
+                >
+                  🗑️
+                </button>
+              </div>
+              <div class="agent-model">Model: {agent.model_name}</div>
+              {#if agent.system_prompt}
+                <div class="agent-prompt">{agent.system_prompt}</div>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 
   <!-- Question Input -->
   <div class="question-section">
@@ -189,6 +343,67 @@
       </div>
     {/if}
   </div>
+
+  <!-- Active Session Details -->
+  {#if activeSession}
+    <div class="session-details">
+      <h3>🔍 Session Details: #{activeSession.session_id.slice(0, 8)}</h3>
+      
+      <div class="detail-section">
+        <h4>❓ Question</h4>
+        <p class="question-text">{activeSession.question}</p>
+      </div>
+
+      <div class="detail-section">
+        {#if activeSession.responses && activeSession.responses.length > 0}
+          {@const uniqueModels = [...new Set(activeSession.responses.map((r: any) => r.model_name))].filter(Boolean)}
+          <h4>👥 Participants ({uniqueModels.length})</h4>
+          <div class="participants-list">
+            {#each uniqueModels as modelName}
+              <div class="participant-card">
+                <div class="participant-icon">🤖</div>
+                <div class="participant-info">
+                  <div class="participant-name">{modelName}</div>
+                  <div class="participant-model">
+                    {activeSession.responses.filter((r: any) => r.model_name === modelName).length} responses
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <h4>👥 Participants (0)</h4>
+          <p class="empty-state">No participants yet - session pending</p>
+        {/if}
+      </div>
+
+      <div class="detail-section">
+        <h4>💬 Responses ({activeSession.responses?.length || 0})</h4>
+        {#if activeSession.responses && activeSession.responses.length > 0}
+          <div class="responses-list">
+            {#each activeSession.responses as response}
+              <div class="response-card">
+                <div class="response-header">
+                  <strong>{response.model_name || response.agent_id || 'Unknown'}</strong>
+                  <span class="response-timestamp">{new Date(response.timestamp * 1000).toLocaleTimeString()}</span>
+                </div>
+                <div class="response-text">{response.response}</div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="empty-state">No responses yet</p>
+        {/if}
+      </div>
+
+      {#if activeSession.consensus_reached}
+        <div class="detail-section consensus-section">
+          <h4>✅ Consensus Reached</h4>
+          <p class="consensus-text">{activeSession.final_answer || 'No final answer recorded'}</p>
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -219,6 +434,195 @@
     padding: 1rem;
     border-radius: 8px;
     margin-bottom: 1rem;
+  }
+
+  /* Agent Management */
+  .agents-management {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .section-header h3 {
+    margin: 0;
+    color: #00d4ff;
+    font-size: 1.2rem;
+  }
+
+  .btn-add-agent {
+    padding: 0.5rem 1rem;
+    background: #4caf50;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-add-agent:hover:not(:disabled) {
+    background: #45a049;
+  }
+
+  .btn-add-agent:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .add-agent-form {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .form-group label {
+    margin-bottom: 0.5rem;
+    color: #aaa;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-family: inherit;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #00d4ff;
+  }
+
+  .form-group input:disabled,
+  .form-group textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .field-hint {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .btn-create {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #00d4ff 0%, #0088cc 100%);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-create:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.4);
+  }
+
+  .btn-create:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .agents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .agent-item {
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .agent-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .agent-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .agent-name {
+    font-weight: 600;
+    color: #00d4ff;
+    font-size: 1rem;
+  }
+
+  .btn-delete-agent {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.25rem 0.5rem;
+    opacity: 0.6;
+    transition: all 0.2s;
+  }
+
+  .btn-delete-agent:hover:not(:disabled) {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+
+  .btn-delete-agent:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .agent-model {
+    font-size: 0.85rem;
+    color: #888;
+    font-family: 'Courier New', monospace;
+  }
+
+  .agent-prompt {
+    font-size: 0.85rem;
+    color: #aaa;
+    line-height: 1.4;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
   }
 
   .question-section {
@@ -343,6 +747,10 @@
     cursor: not-allowed;
   }
 
+  .sessions-section {
+    margin-top: 2rem;
+  }
+
   .sessions-list {
     display: flex;
     flex-direction: column;
@@ -403,6 +811,126 @@
 
   .session-stats .consensus {
     color: #4caf50;
+    font-weight: 500;
+  }
+
+  /* Session Details */
+  .session-details {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+  }
+
+  .detail-section {
+    margin-top: 1.5rem;
+  }
+
+  .detail-section:first-child {
+    margin-top: 0;
+  }
+
+  .detail-section h4 {
+    margin: 0 0 1rem 0;
+    color: #00d4ff;
+    font-size: 1rem;
+  }
+
+  .question-text {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    color: #e0e0e0;
+    line-height: 1.5;
+  }
+
+  .participants-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .participant-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 8px;
+  }
+
+  .participant-icon {
+    font-size: 1.5rem;
+  }
+
+  .participant-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .participant-name {
+    font-weight: 500;
+    color: #e0e0e0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .participant-model {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .responses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .response-card {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 3px solid #00d4ff;
+    border-radius: 4px;
+  }
+
+  .response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    color: #00d4ff;
+    font-size: 0.9rem;
+  }
+
+  .response-round,
+  .response-timestamp {
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  .response-text {
+    color: #e0e0e0;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .consensus-section {
+    border: 2px solid #4caf50;
+    background: rgba(76, 175, 80, 0.05);
+  }
+
+  .consensus-text {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    color: #4caf50;
+    line-height: 1.5;
     font-weight: 500;
   }
 </style>

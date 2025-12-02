@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
     providerAdd,
     providerList,
     providerRemove,
     providerTestConnection,
     providerGenerateUsername,
+    getConfig,
     type ProviderConfig,
     type ProviderType,
     type ProviderHealth,
@@ -14,6 +16,11 @@
   let showAddForm = false;
   let testingProvider: string | null = null;
   let providerHealth: Record<string, ProviderHealth> = {};
+  
+  // Global config
+  let globalOllamaUrl = "http://192.168.1.5:11434";
+  let globalOllamaModel = "qwen2.5-coder:7b";
+  let globalDebugEnabled = false;
 
   // Form state
   let formType: ProviderType = "ollama";
@@ -39,6 +46,17 @@
   let anthropicDefaultModel = "claude-3-opus-20240229";
   let anthropicVersion = "2023-06-01";
 
+  async function loadGlobalConfig() {
+    try {
+      const config = await getConfig();
+      globalOllamaUrl = config.ollama_url;
+      globalOllamaModel = config.ollama_model;
+      globalDebugEnabled = config.debug_enabled;
+    } catch (error) {
+      console.error("Failed to load config:", error);
+    }
+  }
+
   async function loadProviders() {
     try {
       providers = await providerList();
@@ -46,6 +64,11 @@
       console.error("Failed to load providers:", error);
     }
   }
+
+  onMount(() => {
+    loadGlobalConfig();
+    loadProviders();
+  });
 
   async function handleAddProvider() {
     const id = `${formType}_${Date.now()}`;
@@ -175,6 +198,43 @@
     <button class="btn-add" on:click={() => (showAddForm = !showAddForm)}>
       {showAddForm ? "✖ Cancel" : "+ Add Provider"}
     </button>
+  </div>
+
+  <!-- Global Ollama Configuration -->
+  <div class="global-config">
+    <h3>🌐 Global Ollama Configuration</h3>
+    <div class="config-grid">
+      <div class="config-item">
+        <label>Ollama Server URL</label>
+        <input 
+          type="text" 
+          bind:value={globalOllamaUrl} 
+          placeholder="http://192.168.1.5:11434"
+          readonly
+        />
+        <span class="config-hint">Current: {globalOllamaUrl}</span>
+      </div>
+      <div class="config-item">
+        <label>Default Model</label>
+        <input 
+          type="text" 
+          bind:value={globalOllamaModel} 
+          placeholder="qwen2.5-coder:7b"
+          readonly
+        />
+        <span class="config-hint">Current: {globalOllamaModel}</span>
+      </div>
+      <div class="config-item">
+        <label>Debug Mode</label>
+        <div class="toggle-wrapper">
+          <span>{globalDebugEnabled ? "Enabled" : "Disabled"}</span>
+          <span class="config-hint">Cannot be changed from web UI</span>
+        </div>
+      </div>
+    </div>
+    <p class="config-note">
+      ℹ️ Global config is read-only in web mode. To change, edit config file or use Tauri app.
+    </p>
   </div>
 
   {#if showAddForm}
@@ -445,6 +505,77 @@
 
   .btn-add:hover {
     background: #45a049;
+  }
+
+  .global-config {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.05) 0%, rgba(0, 136, 204, 0.05) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+  }
+
+  .global-config h3 {
+    margin: 0 0 1rem 0;
+    color: #00d4ff;
+    font-size: 1.1rem;
+  }
+
+  .config-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .config-item label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #aaa;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .config-item input {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+  }
+
+  .config-item input:read-only {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .config-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .toggle-wrapper span:first-child {
+    color: #e0e0e0;
+    font-weight: 500;
+  }
+
+  .config-note {
+    margin: 0;
+    padding: 0.75rem;
+    background: rgba(0, 136, 204, 0.1);
+    border-left: 3px solid #0088cc;
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 0.85rem;
   }
 
   .add-form {

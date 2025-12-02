@@ -6,11 +6,13 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     agents::AgentPool,
+    chat::{AuthorType, ChannelType, Message},
     council::CouncilSessionManager,
     AppState,
 };
@@ -35,6 +37,22 @@ pub struct CreateAgentRequest {
 pub struct CouncilSessionRequest {
     pub question: String,
     pub agent_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SendMessageRequest {
+    pub channel: String,
+    pub author: String,
+    pub author_type: String,
+    pub content: String,
+    pub signature: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct GetMessagesRequest {
+    pub channel: String,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -70,11 +88,15 @@ async fn health_check() -> Response {
 // Get app config
 async fn get_config(State(state): State<WebState>) -> Response {
     let config = state.app_state.config.lock().unwrap();
-    (StatusCode::OK, Json(ApiResponse::ok(serde_json::json!({
-        "ollama_url": config.ollama_url,
-        "ollama_model": config.ollama_model,
-        "debug_enabled": config.debug_enabled,
-    })))).into_response()
+    (
+        StatusCode::OK,
+        Json(ApiResponse::ok(serde_json::json!({
+            "ollama_url": config.ollama_url,
+            "ollama_model": config.ollama_model,
+            "debug_enabled": config.debug_enabled,
+        }))),
+    )
+        .into_response()
 }
 
 // Agent endpoints
@@ -88,29 +110,50 @@ async fn create_agent(
     Json(req): Json<CreateAgentRequest>,
 ) -> Response {
     use crate::agents::Agent;
-    
+
     let mut agent = Agent::new(
         req.name,
         req.model_name,
         req.system_prompt.unwrap_or_default(),
     );
-    
+
     if let Some(tools) = req.tools {
         agent.enabled_tools = tools;
     }
-    
+
     match state.agent_pool.add_agent(agent).await {
         Ok(agent_id) => (StatusCode::OK, Json(ApiResponse::ok(agent_id))).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::err(e))).into_response(),
     }
 }
 
-async fn delete_agent(
-    State(state): State<WebState>,
-    Json(agent_id): Json<String>,
-) -> Response {
+async fn delete_agent(State(state): State<WebState>, Json(payload): Json<Value>) -> Response {
+    let agent_id = match payload {
+        Value::String(id) => Some(id),
+        Value::Object(map) => map
+            .get("agent_id")
+            .or_else(|| map.get("id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        _ => None,
+    };
+
+    let Some(agent_id) = agent_id else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<String>::err(
+                "Missing agent_id in delete request".to_string(),
+            )),
+        )
+            .into_response();
+    };
+
     match state.agent_pool.remove_agent(&agent_id).await {
-        Ok(_) => (StatusCode::OK, Json(ApiResponse::ok("Agent deleted".to_string()))).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok("Agent deleted".to_string())),
+        )
+            .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, Json(ApiResponse::<String>::err(e))).into_response(),
     }
 }
@@ -118,9 +161,13 @@ async fn delete_agent(
 // Council endpoints
 async fn list_council_sessions(State(state): State<WebState>) -> Response {
     let sessions = state.council_manager.list_sessions().await;
-    (StatusCode::OK, Json(ApiResponse::ok(serde_json::json!({
-        "sessions": sessions
-    })))).into_response()
+    (
+        StatusCode::OK,
+        Json(ApiResponse::ok(serde_json::json!({
+            "sessions": sessions
+        }))),
+    )
+        .into_response()
 }
 
 async fn get_council_session(
@@ -134,19 +181,123 @@ async fn get_council_session(
 async fn create_council_session(
     State(state): State<WebState>,
     Json(req): Json<CouncilSessionRequest>,
-) -> Result<Json<ApiResponse<String>>, (StatusCode, Json<ApiResponse<String>>)> {
-    let config = state.app_state.config.lock().expect("Failed to lock config");
-    let ollama_url = config.ollama_url.clone();
-    drop(config);
+) -> Response {
+    let ollama_url = {
+        let config = state
+            .app_state
+            .config
+            .lock()
+            .expect("Failed to lock config");
+        config.ollama_url.clone()
+    };
 
-    match state.council_manager.create_session_with_agents(
-        req.question,
-        state.agent_pool.clone(),
-        req.agent_ids,
-        &ollama_url,
-    ).await {
-        Ok(session_id) => Ok(Json(ApiResponse::ok(session_id))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e)))),
+    match state
+        .council_manager
+        .create_session_with_agents(
+            req.question,
+            state.agent_pool.clone(),
+            req.agent_ids,
+            &ollama_url,
+        )
+        .await
+    {
+        Ok(session_id) => (StatusCode::OK, Json(ApiResponse::ok(session_id))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::err(e)),
+        )
+            .into_response(),
+    }
+}
+
+// Chat endpoints
+async fn send_message(
+    State(state): State<WebState>,
+    Json(req): Json<SendMessageRequest>,
+) -> Response {
+    let channel_type = match ChannelType::from_str(&req.channel) {
+        Some(ct) => ct,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<String>::err(format!(
+                    "Invalid channel: {}",
+                    req.channel
+                ))),
+            )
+                .into_response()
+        }
+    };
+
+    let author_type = match req.author_type.as_str() {
+        "human" => AuthorType::Human,
+        "ai" => AuthorType::AI,
+        "system" => AuthorType::System,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<String>::err(format!(
+                    "Invalid author type: {}",
+                    req.author_type
+                ))),
+            )
+                .into_response()
+        }
+    };
+
+    let mut message = Message::new(channel_type, req.author, author_type, req.content);
+
+    if let Some(sig) = req.signature {
+        message = message.with_signature(sig);
+    }
+
+    match state
+        .app_state
+        .channel_manager
+        .send_message(message.clone())
+    {
+        Ok(msg_id) => {
+            // Broadcast to WebSocket clients if available
+            let _ = state.app_state.websocket_broadcast.send(message);
+            (StatusCode::OK, Json(ApiResponse::ok(msg_id))).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<String>::err(e)),
+        )
+            .into_response(),
+    }
+}
+
+async fn get_messages(
+    State(state): State<WebState>,
+    Json(req): Json<GetMessagesRequest>,
+) -> Response {
+    let channel_type = match ChannelType::from_str(&req.channel) {
+        Some(ct) => ct,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<Vec<Message>>::err(format!(
+                    "Invalid channel: {}",
+                    req.channel
+                ))),
+            )
+                .into_response()
+        }
+    };
+
+    match state.app_state.channel_manager.get_messages(
+        channel_type,
+        req.limit.unwrap_or(50),
+        req.offset.unwrap_or(0),
+    ) {
+        Ok(messages) => (StatusCode::OK, Json(ApiResponse::ok(messages))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<Vec<Message>>::err(e)),
+        )
+            .into_response(),
     }
 }
 
@@ -165,7 +316,9 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/agents/delete", post(delete_agent))
         .route("/api/council/sessions", get(list_council_sessions))
         .route("/api/council/session", post(get_council_session))
-        // .route("/api/council/create", post(create_council_session)) // TODO: Fix Handler trait issue
+        .route("/api/council/create", post(create_council_session))
+        .route("/api/chat/send", post(send_message))
+        .route("/api/chat/messages", post(get_messages))
         .layer(cors)
         .with_state(state)
 }
@@ -184,11 +337,11 @@ pub async fn start_web_server(
 
     let app = create_router(state);
     let addr = format!("0.0.0.0:{}", port);
-    
+
     println!("🌐 Web server starting on http://{}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }

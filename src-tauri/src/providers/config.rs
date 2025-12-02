@@ -72,20 +72,18 @@ impl Default for ProvidersConfig {
 impl ProvidersConfig {
     /// Load config from file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, String> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read config file: {}", e))?;
-        
-        serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse config: {}", e))
+        let content =
+            fs::read_to_string(path).map_err(|e| format!("Failed to read config file: {}", e))?;
+
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))
     }
 
     /// Save config to file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize config: {}", e))?;
-        
-        fs::write(path, json)
-            .map_err(|e| format!("Failed to write config file: {}", e))
+
+        fs::write(path, json).map_err(|e| format!("Failed to write config file: {}", e))
     }
 
     /// Add or update provider
@@ -101,7 +99,7 @@ impl ProvidersConfig {
     pub fn remove_provider(&mut self, id: &str) -> bool {
         let original_len = self.providers.len();
         self.providers.retain(|p| p.id != id);
-        
+
         // Clear defaults if removed provider was default
         if self.default_generation_provider.as_deref() == Some(id) {
             self.default_generation_provider = None;
@@ -109,7 +107,7 @@ impl ProvidersConfig {
         if self.default_embedding_provider.as_deref() == Some(id) {
             self.default_embedding_provider = None;
         }
-        
+
         self.providers.len() < original_len
     }
 
@@ -200,7 +198,7 @@ mod tests {
     #[test]
     fn test_upsert_provider() {
         let mut config = ProvidersConfig::default();
-        
+
         let provider = ProviderConfig {
             id: "test".to_string(),
             username: "TestBot".to_string(),
@@ -218,7 +216,7 @@ mod tests {
 
         config.upsert_provider(provider.clone());
         assert_eq!(config.providers.len(), 1);
-        
+
         // Update
         config.upsert_provider(provider);
         assert_eq!(config.providers.len(), 1);
@@ -227,7 +225,7 @@ mod tests {
     #[test]
     fn test_remove_provider() {
         let mut config = ProvidersConfig::default();
-        
+
         let provider = ProviderConfig {
             id: "test".to_string(),
             username: "TestBot".to_string(),

@@ -55,6 +55,14 @@ When implementing any feature:
 - **Keep Responses Short**: No excessive emojis or verbose explanations
 - **Never use `cat << 'EOF'`**: Create proper files instead of pasting long scripts in terminal
 
+### Environment Limitations (Observed 2025-12-02)
+- VS Code's Simple Browser in this workspace cannot reach the user's LAN hosts (e.g., `http://192.168.1.5:5175`). The tool opens but loads no content because the remote environment lacks access to that private network.
+- When LAN resources must be inspected, rely on user-provided screenshots, DevTools logs, or curl output from their machine instead of attempting to browse locally from the agent environment.
+
+### User Request Compliance (2025-12-02)
+- When the user explicitly asks to try a command/tool/URL, execute it immediately even if you expect it to fail, then report the actual output/limitation.
+- Never make the user repeat such requests; evidence of the attempt (tool output, log snippet) must be provided on the first response.
+
 ## Core Philosophy
 
 - **Decentralization First**: Every client is a node (Tor-like architecture)

@@ -1,7 +1,7 @@
 // Council message protocol for P2P communication
 
-use serde::{Deserialize, Serialize};
 use crate::crypto::SignedMessage;
+use serde::{Deserialize, Serialize};
 
 /// Message types for council communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ pub struct CouncilResponse {
     pub response: String,
     pub peer_id: String,
     pub timestamp: u64,
-    pub signature: Option<String>, // Base64 encoded Ed25519 signature
+    pub signature: Option<String>,  // Base64 encoded Ed25519 signature
     pub public_key: Option<String>, // Base64 encoded public key
 }
 

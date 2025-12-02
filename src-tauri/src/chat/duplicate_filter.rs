@@ -136,11 +136,23 @@ impl DuplicateFilter {
              To ask anyway: /ask --force <your question>",
             warning_type,
             similarity_pct,
-            result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_question.as_ref().unwrap_or(&"unknown".to_string()),
+            result
+                .existing_session_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            result
+                .existing_question
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
             result.asked_at.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_verdict.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string()),
+            result
+                .existing_verdict
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            result
+                .existing_session_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
         )
     }
 
@@ -159,10 +171,22 @@ impl DuplicateFilter {
              Verdict: \"{}\"\n\n\
              View details: /session/{}",
             similarity_pct,
-            result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_question.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_verdict.as_ref().unwrap_or(&"unknown".to_string()),
-            result.existing_session_id.as_ref().unwrap_or(&"unknown".to_string()),
+            result
+                .existing_session_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            result
+                .existing_question
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            result
+                .existing_verdict
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            result
+                .existing_session_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
         )
     }
 }
@@ -233,15 +257,15 @@ mod tests {
 
         // Exact duplicate
         assert!(0.96 >= config.exact_threshold);
-        
+
         // Similar but not exact
         assert!(0.90 >= config.similar_threshold);
         assert!(0.90 < config.exact_threshold);
-        
+
         // Related but not similar
         assert!(0.75 >= config.related_threshold);
         assert!(0.75 < config.similar_threshold);
-        
+
         // Not related
         assert!(0.60 < config.related_threshold);
     }

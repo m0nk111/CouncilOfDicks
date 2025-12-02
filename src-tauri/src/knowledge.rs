@@ -1,5 +1,5 @@
 use crate::deliberation::{DeliberationResult, DeliberationRound, MemberResponse};
-use crate::logger::{Logger, LogLevel};
+use crate::logger::{LogLevel, Logger};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
 use std::sync::Arc;
@@ -84,11 +84,8 @@ impl KnowledgeBank {
 
     /// Create database schema with vector support
     async fn initialize_schema(&self) -> Result<(), String> {
-        self.logger.log(
-            LogLevel::Debug,
-            "knowledge",
-            "📊 Creating database schema",
-        );
+        self.logger
+            .log(LogLevel::Debug, "knowledge", "📊 Creating database schema");
 
         // Main deliberations table
         sqlx::query(
@@ -182,11 +179,8 @@ impl KnowledgeBank {
         .await
         .map_err(|e| format!("Failed to create FTS table: {}", e))?;
 
-        self.logger.log(
-            LogLevel::Success,
-            "knowledge",
-            "✅ Database schema ready",
-        );
+        self.logger
+            .log(LogLevel::Success, "knowledge", "✅ Database schema ready");
 
         Ok(())
     }
@@ -218,7 +212,7 @@ impl KnowledgeBank {
         // Store rounds and responses
         for round in &result.rounds {
             let round_id = self.store_round(&result.session_id, round).await?;
-            
+
             for response in &round.responses {
                 self.store_response(round_id, response).await?;
             }
@@ -230,14 +224,21 @@ impl KnowledgeBank {
         self.logger.log(
             LogLevel::Success,
             "knowledge",
-            &format!("✅ Stored deliberation with embeddings: {}", result.session_id),
+            &format!(
+                "✅ Stored deliberation with embeddings: {}",
+                result.session_id
+            ),
         );
 
         Ok(())
     }
 
     /// Store a deliberation round
-    async fn store_round(&self, deliberation_id: &str, round: &DeliberationRound) -> Result<i64, String> {
+    async fn store_round(
+        &self,
+        deliberation_id: &str,
+        round: &DeliberationRound,
+    ) -> Result<i64, String> {
         let result = sqlx::query(
             r#"
             INSERT INTO rounds (deliberation_id, round_number)
@@ -278,7 +279,10 @@ impl KnowledgeBank {
         self.logger.log(
             LogLevel::Debug,
             "knowledge",
-            &format!("🔢 Generating embeddings for deliberation: {}", result.session_id),
+            &format!(
+                "🔢 Generating embeddings for deliberation: {}",
+                result.session_id
+            ),
         );
 
         let mut chunks = Vec::new();
@@ -297,7 +301,8 @@ impl KnowledgeBank {
                 let metadata = serde_json::json!({
                     "round": round.round_number,
                     "member": response.member_name
-                }).to_string();
+                })
+                .to_string();
                 chunks.push((chunk_id, response.response.clone(), metadata));
             }
         }
@@ -395,7 +400,11 @@ impl KnowledgeBank {
     }
 
     /// Semantic search with RAG
-    pub async fn semantic_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, String> {
+    pub async fn semantic_search(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<SearchResult>, String> {
         self.logger.log(
             LogLevel::Info,
             "knowledge",
@@ -429,7 +438,7 @@ impl KnowledgeBank {
             let question: String = row.get("question");
             let text: String = row.get("text");
             let embedding_bytes: Vec<u8> = row.get("embedding");
-            
+
             let embedding = Self::deserialize_embedding(&embedding_bytes);
             let similarity = Self::cosine_similarity(&query_embedding, &embedding);
 
@@ -455,7 +464,10 @@ impl KnowledgeBank {
     }
 
     /// Get a specific deliberation by ID
-    pub async fn get_deliberation(&self, deliberation_id: &str) -> Result<DeliberationResult, String> {
+    pub async fn get_deliberation(
+        &self,
+        deliberation_id: &str,
+    ) -> Result<DeliberationResult, String> {
         self.logger.log(
             LogLevel::Info,
             "knowledge",
@@ -550,7 +562,11 @@ impl KnowledgeBank {
     }
 
     /// Build RAG context for a question
-    pub async fn build_rag_context(&self, question: &str, top_k: usize) -> Result<RAGContext, String> {
+    pub async fn build_rag_context(
+        &self,
+        question: &str,
+        top_k: usize,
+    ) -> Result<RAGContext, String> {
         let relevant = self.semantic_search(question, top_k).await?;
 
         let mut context_text = String::from("# Relevant Past Decisions\n\n");
@@ -574,7 +590,7 @@ impl KnowledgeBank {
         let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
         let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
         let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-        
+
         if norm_a == 0.0 || norm_b == 0.0 {
             0.0
         } else {
@@ -584,10 +600,7 @@ impl KnowledgeBank {
 
     /// Serialize embedding to bytes
     fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
-        embedding
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect()
+        embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
     }
 
     /// Deserialize embedding from bytes
@@ -620,13 +633,7 @@ impl KnowledgeBank {
 
         Ok(rows
             .iter()
-            .map(|row| {
-                (
-                    row.get("id"),
-                    row.get("question"),
-                    row.get("completed"),
-                )
-            })
+            .map(|row| (row.get("id"), row.get("question"), row.get("completed")))
             .collect())
     }
 }

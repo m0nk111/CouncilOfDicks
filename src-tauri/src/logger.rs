@@ -30,14 +30,14 @@ impl LogLevel {
 
     pub fn color_code(&self) -> &str {
         match self {
-            LogLevel::Debug => "\x1b[36m",      // Cyan
-            LogLevel::Info => "\x1b[34m",       // Blue
-            LogLevel::Warning => "\x1b[33m",    // Yellow
-            LogLevel::Error => "\x1b[31m",      // Red
-            LogLevel::Success => "\x1b[32m",    // Green
-            LogLevel::Network => "\x1b[35m",    // Magenta
-            LogLevel::Config => "\x1b[95m",     // Bright Magenta
-            LogLevel::Metrics => "\x1b[96m",    // Bright Cyan
+            LogLevel::Debug => "\x1b[36m",   // Cyan
+            LogLevel::Info => "\x1b[34m",    // Blue
+            LogLevel::Warning => "\x1b[33m", // Yellow
+            LogLevel::Error => "\x1b[31m",   // Red
+            LogLevel::Success => "\x1b[32m", // Green
+            LogLevel::Network => "\x1b[35m", // Magenta
+            LogLevel::Config => "\x1b[95m",  // Bright Magenta
+            LogLevel::Metrics => "\x1b[96m", // Bright Cyan
         }
     }
 }
@@ -48,8 +48,8 @@ pub struct Logger {
 
 impl Logger {
     pub fn new(debug_enabled: bool) -> Self {
-        Self { 
-            debug_enabled: AtomicBool::new(debug_enabled)
+        Self {
+            debug_enabled: AtomicBool::new(debug_enabled),
         }
     }
 

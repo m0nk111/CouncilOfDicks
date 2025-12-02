@@ -47,7 +47,8 @@ impl UserState {
     /// Clean old timestamps
     fn cleanup(&mut self, now: DateTime<Utc>) {
         // Keep only last 24 hours
-        self.questions.retain(|ts| now.signed_duration_since(*ts) < Duration::hours(24));
+        self.questions
+            .retain(|ts| now.signed_duration_since(*ts) < Duration::hours(24));
     }
 
     /// Check if user is in cooldown
@@ -112,7 +113,9 @@ impl RateLimiter {
         let mut users = self.users.lock().unwrap();
         let now = Utc::now();
 
-        let user_state = users.entry(user_id.to_string()).or_insert_with(UserState::new);
+        let user_state = users
+            .entry(user_id.to_string())
+            .or_insert_with(UserState::new);
 
         // Cleanup old timestamps
         user_state.cleanup(now);
@@ -153,7 +156,11 @@ impl RateLimiter {
                     "Rate limit exceeded: {} questions per hour.",
                     self.config.max_questions_per_hour
                 )),
-                retry_after_seconds: Some(3600 - now.signed_duration_since(user_state.questions[0]).num_seconds()),
+                retry_after_seconds: Some(
+                    3600 - now
+                        .signed_duration_since(user_state.questions[0])
+                        .num_seconds(),
+                ),
             };
         }
 
@@ -166,7 +173,12 @@ impl RateLimiter {
                     "Rate limit exceeded: {} questions per day.",
                     self.config.max_questions_per_day
                 )),
-                retry_after_seconds: Some(86400 - now.signed_duration_since(user_state.questions[0]).num_seconds()),
+                retry_after_seconds: Some(
+                    86400
+                        - now
+                            .signed_duration_since(user_state.questions[0])
+                            .num_seconds(),
+                ),
             };
         }
 
@@ -182,7 +194,9 @@ impl RateLimiter {
         let mut users = self.users.lock().unwrap();
         let now = Utc::now();
 
-        let user_state = users.entry(user_id.to_string()).or_insert_with(UserState::new);
+        let user_state = users
+            .entry(user_id.to_string())
+            .or_insert_with(UserState::new);
         user_state.questions.push(now);
     }
 
@@ -191,13 +205,17 @@ impl RateLimiter {
         let mut users = self.users.lock().unwrap();
         let now = Utc::now();
 
-        let user_state = users.entry(user_id.to_string()).or_insert_with(UserState::new);
+        let user_state = users
+            .entry(user_id.to_string())
+            .or_insert_with(UserState::new);
         user_state.violations += 1;
 
         // Exponential backoff
         let cooldown_seconds = (self.config.initial_cooldown_seconds as f32
-            * self.config.cooldown_multiplier.powi(user_state.violations as i32 - 1))
-            as u64;
+            * self
+                .config
+                .cooldown_multiplier
+                .powi(user_state.violations as i32 - 1)) as u64;
         let cooldown_seconds = cooldown_seconds.min(self.config.max_cooldown_seconds);
 
         user_state.cooldown_until = Some(now + Duration::seconds(cooldown_seconds as i64));
@@ -243,7 +261,7 @@ mod tests {
         // First 2 questions should be allowed
         assert!(limiter.check_rate_limit("user1").allowed);
         limiter.record_question("user1");
-        
+
         assert!(limiter.check_rate_limit("user1").allowed);
         limiter.record_question("user1");
 
@@ -272,7 +290,7 @@ mod tests {
         let limiter = RateLimiter::new();
 
         limiter.apply_cooldown("user1");
-        
+
         let users = limiter.users.lock().unwrap();
         let user_state = users.get("user1").unwrap();
         assert_eq!(user_state.violations, 1);

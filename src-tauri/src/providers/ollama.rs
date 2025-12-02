@@ -1,4 +1,5 @@
 use crate::logger::{LogLevel, Logger};
+use crate::prompt;
 use crate::providers::{
     AIProvider, FinishReason, GenerationRequest, GenerationResponse, ModelInfo, ProviderError,
     ProviderHealth, ProviderType,
@@ -41,11 +42,7 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
-    pub fn new(
-        base_url: String,
-        default_model: String,
-        logger: Arc<Logger>,
-    ) -> Self {
+    pub fn new(base_url: String, default_model: String, logger: Arc<Logger>) -> Self {
         logger.log(
             LogLevel::Info,
             "ollama_provider",
@@ -91,12 +88,12 @@ impl AIProvider for OllamaProvider {
 
         let endpoint = format!("{}/api/generate", self.base_url);
 
-        // Build prompt with system prompt if provided
-        let full_prompt = if let Some(system) = request.system_prompt {
-            format!("{}\n\n{}", system, request.prompt)
-        } else {
-            request.prompt.clone()
+        // Build prompt with immutable TCOD context + optional role details
+        let system_section = match request.system_prompt {
+            Some(system) => prompt::compose_system_prompt(&system),
+            None => prompt::compose_system_prompt(""),
         };
+        let full_prompt = format!("{}\n\n{}", system_section, request.prompt);
 
         let ollama_request = OllamaRequest {
             model: request.model.clone(),
@@ -183,7 +180,10 @@ impl AIProvider for OllamaProvider {
         self.logger.log(
             LogLevel::Success,
             "ollama_provider",
-            &format!("✅ Generated {}-dim embedding", embed_response.embedding.len()),
+            &format!(
+                "✅ Generated {}-dim embedding",
+                embed_response.embedding.len()
+            ),
         );
 
         Ok(embed_response.embedding)

@@ -33,11 +33,7 @@ impl ProviderRegistry {
         self.logger.log(
             LogLevel::Info,
             "registry",
-            &format!(
-                "📦 Registering provider: {} ({})",
-                provider.name(),
-                id
-            ),
+            &format!("📦 Registering provider: {} ({})", provider.name(), id),
         );
 
         self.providers.insert(id, provider);
@@ -72,10 +68,7 @@ impl ProviderRegistry {
 
         let provider = self.providers.get(&id).unwrap();
         if !provider.supports_embeddings() {
-            return Err(format!(
-                "Provider '{}' does not support embeddings",
-                id
-            ));
+            return Err(format!("Provider '{}' does not support embeddings", id));
         }
 
         self.logger.log(
@@ -202,8 +195,12 @@ mod tests {
         registry.register("test_provider".to_string(), provider);
 
         // Set defaults
-        assert!(registry.set_default_generation("test_provider".to_string()).is_ok());
-        assert!(registry.set_default_embedding("test_provider".to_string()).is_ok());
+        assert!(registry
+            .set_default_generation("test_provider".to_string())
+            .is_ok());
+        assert!(registry
+            .set_default_embedding("test_provider".to_string())
+            .is_ok());
 
         // Get defaults
         assert!(registry.get_generation_provider().is_ok());

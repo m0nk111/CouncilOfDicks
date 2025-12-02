@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-12-02)
+- **Council Verdict Store**: SQLite-backed persistence for every consensus result, including new `verdict_list_recent` and `verdict_get` commands so the UI (and MCP tools) can browse final decisions even after restarts
+- **State Initialization**: AppState boot now provisions the `data/` directory, wires up the KnowledgeBank, and prepares the verdict store automatically (Tauri + HTTP modes both benefit)
+
+### Fixed (2025-12-02)
+- **Ollama Client**: Detects available models via `/api/tags` and falls back to an installed model instead of erroring when the requested tag is missing
+- **Config Defaults**: Switched default model to `mistral:7b`, matching a known deployed tag on the shared Ollama host
+
 ### Fixed (2025-12-01)
 - **Web Server**: Disabled WIP web_server module due to Axum 0.7 Handler trait conflicts
 - **Tests**: Updated test count to 104 (was incorrectly documented as 97)

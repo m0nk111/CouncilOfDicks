@@ -11,7 +11,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             ollama_url: "http://192.168.1.5:11434".to_string(),
-            ollama_model: "qwen2.5-coder:7b".to_string(),
+            ollama_model: "mistral:7b".to_string(),
             debug_enabled: true,
         }
     }

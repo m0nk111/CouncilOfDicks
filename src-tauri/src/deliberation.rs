@@ -1,5 +1,6 @@
-use crate::logger::{Logger, LogLevel};
+use crate::logger::{LogLevel, Logger};
 use crate::ollama::OllamaClient;
+use crate::prompt;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -50,7 +51,11 @@ pub struct DeliberationEngine {
 impl DeliberationEngine {
     /// Create new deliberation engine
     pub fn new(logger: Arc<Logger>, ollama_client: Arc<Mutex<OllamaClient>>) -> Self {
-        logger.log(LogLevel::Debug, "deliberation", "🧠 Deliberation engine initialized");
+        logger.log(
+            LogLevel::Debug,
+            "deliberation",
+            "🧠 Deliberation engine initialized",
+        );
         Self {
             logger,
             ollama_client,
@@ -70,30 +75,47 @@ impl DeliberationEngine {
             .unwrap()
             .as_secs();
 
-        self.logger
-            .log(LogLevel::Info, "deliberation", &format!("🎭 Starting deliberation: {}", session_id));
-        self.logger
-            .log(LogLevel::Info, "deliberation", &format!("   Question: {}", question));
-        self.logger
-            .log(LogLevel::Info, "deliberation", &format!("   Members: {}", members.len()));
-        self.logger
-            .log(LogLevel::Info, "deliberation", &format!("   Max rounds: {}", max_rounds));
+        self.logger.log(
+            LogLevel::Info,
+            "deliberation",
+            &format!("🎭 Starting deliberation: {}", session_id),
+        );
+        self.logger.log(
+            LogLevel::Info,
+            "deliberation",
+            &format!("   Question: {}", question),
+        );
+        self.logger.log(
+            LogLevel::Info,
+            "deliberation",
+            &format!("   Members: {}", members.len()),
+        );
+        self.logger.log(
+            LogLevel::Info,
+            "deliberation",
+            &format!("   Max rounds: {}", max_rounds),
+        );
 
         let mut rounds = Vec::new();
         let mut context = String::new();
 
         // Round 1: Initial responses
-        self.logger.log(LogLevel::Info, "deliberation", "🔄 Round 1: Initial responses");
-        let round1 = self
-            .execute_round(1, &question, &members, &context)
-            .await?;
+        self.logger.log(
+            LogLevel::Info,
+            "deliberation",
+            "🔄 Round 1: Initial responses",
+        );
+        let round1 = self.execute_round(1, &question, &members, &context).await?;
         context = self.build_context(&question, &round1);
         rounds.push(round1);
 
         // Additional rounds if needed
         for round_num in 2..=max_rounds {
-            self.logger
-                .log(LogLevel::Info, "deliberation", &format!("🔄 Round {}: Cross-examination", round_num));
+            self.logger.log(
+                LogLevel::Info,
+                "deliberation",
+                &format!("🔄 Round {}: Cross-examination", round_num),
+            );
 
             let round = self
                 .execute_round(round_num, &question, &members, &context)
@@ -101,7 +123,8 @@ impl DeliberationEngine {
 
             // Check for consensus
             if self.has_consensus(&round) {
-                self.logger.log(LogLevel::Info, "deliberation", "✅ Consensus reached!");
+                self.logger
+                    .log(LogLevel::Info, "deliberation", "✅ Consensus reached!");
                 rounds.push(round);
                 break;
             }
@@ -174,12 +197,18 @@ impl DeliberationEngine {
             match task.await {
                 Ok(Ok(response)) => responses.push(response),
                 Ok(Err(e)) => {
-                    self.logger
-                        .log(LogLevel::Warning, "deliberation", &format!("⚠️ Member query failed: {}", e));
+                    self.logger.log(
+                        LogLevel::Warning,
+                        "deliberation",
+                        &format!("⚠️ Member query failed: {}", e),
+                    );
                 }
                 Err(e) => {
-                    self.logger
-                        .log(LogLevel::Warning, "deliberation", &format!("⚠️ Task error: {}", e));
+                    self.logger.log(
+                        LogLevel::Warning,
+                        "deliberation",
+                        &format!("⚠️ Task error: {}", e),
+                    );
                 }
             }
         }
@@ -206,15 +235,16 @@ impl DeliberationEngine {
         );
 
         // Build prompt with personality and context
+        let system_directive = prompt::compose_system_prompt(&member.system_prompt);
         let prompt = if round_number == 1 {
             format!(
                 "{}\n\nQuestion: {}\n\nProvide your analysis and recommendation.",
-                member.system_prompt, question
+                system_directive, question
             )
         } else {
             format!(
                 "{}\n\nQuestion: {}\n\nPrevious discussion:\n{}\n\nProvide your response considering the previous arguments.",
-                member.system_prompt, question, context
+                system_directive, question, context
             )
         };
 
@@ -268,7 +298,10 @@ impl DeliberationEngine {
             if agreement_phrases.iter().any(|phrase| text.contains(phrase)) {
                 agreement_count += 1;
             }
-            if disagreement_phrases.iter().any(|phrase| text.contains(phrase)) {
+            if disagreement_phrases
+                .iter()
+                .any(|phrase| text.contains(phrase))
+            {
                 disagreement_count += 1;
             }
         }
@@ -297,11 +330,7 @@ impl DeliberationEngine {
             consensus.push_str(&format!(
                 "- {} agrees: {}\n",
                 response.member_name,
-                response
-                    .response
-                    .lines()
-                    .next()
-                    .unwrap_or("(no summary)")
+                response.response.lines().next().unwrap_or("(no summary)")
             ));
         }
 
@@ -334,14 +363,12 @@ mod tests {
 
         let round = DeliberationRound {
             round_number: 1,
-            responses: vec![
-                MemberResponse {
-                    member_name: "Test Member".to_string(),
-                    model: "test-model".to_string(),
-                    response: "Test response".to_string(),
-                    timestamp: 0,
-                },
-            ],
+            responses: vec![MemberResponse {
+                member_name: "Test Member".to_string(),
+                model: "test-model".to_string(),
+                response: "Test response".to_string(),
+                timestamp: 0,
+            }],
         };
 
         let context = engine.build_context("Test question?", &round);
