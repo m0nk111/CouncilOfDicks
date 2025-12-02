@@ -22,6 +22,7 @@ mod providers;
 pub mod state;
 mod verdict_store;
 pub mod web_server;
+pub mod topic_manager;
 
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ use pohv::{pohv_get_status, pohv_heartbeat};
 use prompt::compose_system_prompt;
 use providers::AIProvider;
 use state::AppState;
+use topic_manager::{topic_get_status, topic_set, topic_stop};
 
 // Tauri commands
 #[tauri::command]
@@ -1022,6 +1024,9 @@ pub fn run() {
             verdict_get,
             pohv_heartbeat,
             pohv_get_status,
+            topic_get_status,
+            topic_set,
+            topic_stop,
             provider_add,
             provider_list,
             provider_remove,

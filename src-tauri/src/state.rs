@@ -11,6 +11,7 @@ use crate::mcp::McpServer;
 use crate::metrics::MetricsCollector;
 use crate::p2p_manager::P2PManager;
 use crate::pohv::PoHVSystem;
+use crate::topic_manager::TopicManager;
 use crate::verdict_store::VerdictStore;
 use std::fs;
 use std::path::PathBuf;
@@ -35,6 +36,7 @@ pub struct AppState {
     pub agent_pool: Arc<AgentPool>,
     pub verdict_store: Option<Arc<VerdictStore>>,
     pub pohv_system: Arc<PoHVSystem>,
+    pub topic_manager: Arc<TopicManager>,
 }
 
 impl AppState {
@@ -139,8 +141,15 @@ impl AppState {
         let (ws_tx, _ws_rx) = broadcast::channel::<ChatMessage>(100);
         let agent_pool = Arc::new(AgentPool::new());
         let pohv_system = Arc::new(PoHVSystem::new());
+        let topic_manager = Arc::new(TopicManager::new());
 
-        Self {
+        // Start the topic loop
+        // We need to do this after we have the full AppState, which is tricky in `initialize`
+        // because we are constructing it.
+        // We'll have to start it separately or use a lazy initialization pattern.
+        // For now, let's just create it here.
+
+        let state = Self {
             config: Arc::new(Mutex::new(base_config)),
             logger: logger.clone(),
             metrics: Arc::new(Mutex::new(MetricsCollector::new())),
@@ -155,11 +164,18 @@ impl AppState {
             spam_detector,
             websocket_broadcast: Arc::new(ws_tx),
             agent_pool,
-            verdict_store,
+            verdict_store: verdict_store,
             pohv_system,
-        }
+            topic_manager,
+        };
+        
+        // Start background tasks
+        crate::topic_manager::start_topic_loop(Arc::new(state.clone()));
+
+        state
     }
-}    pub fn get_config(&self) -> AppConfig {
+
+    pub fn get_config(&self) -> AppConfig {
         self.config.lock().unwrap().clone()
     }
 
