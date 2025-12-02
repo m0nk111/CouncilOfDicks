@@ -52,6 +52,10 @@
     dispatch("showCouncil");
   }
 
+  function openTopic() {
+    dispatch("showTopic");
+  }
+
   const channels: { name: string; type: ChannelType; icon: string; description: string }[] = [
     { name: "General", type: "general", icon: "💬", description: "General discussion" },
     { name: "Human", type: "human", icon: "👤", description: "Human-only channel" },
@@ -345,6 +349,17 @@
         <p class="channel-description">
           {channels.find((c) => c.type === selectedChannel)?.description}
         </p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" on:click={openTopic} title="Topic Channel">
+          📢
+        </button>
+        <button class="icon-btn" on:click={openCouncil} title="Council">
+          🏛️
+        </button>
+        <button class="icon-btn" on:click={openSettings} title="Settings">
+          ⚙️
+        </button>
       </div>
     </div>
 

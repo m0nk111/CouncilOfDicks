@@ -3,9 +3,11 @@
   import ProvidersPanel from "./ProvidersPanel.svelte";
   import CouncilPanel from "./CouncilPanel.svelte";
   import PoHVIndicator from "./PoHVIndicator.svelte";
+  import TopicControl from "./TopicControl.svelte";
 
   let showSettings = false;
   let showCouncil = false;
+  let showTopic = false;
 </script>
 
 {#if showSettings}
@@ -34,10 +36,24 @@
   </div>
 {/if}
 
+{#if showTopic}
+  <!-- Topic Modal -->
+  <div class="modal-overlay" on:click={() => (showTopic = false)} role="dialog">
+    <div class="modal-content" on:click|stopPropagation role="document">
+      <div class="modal-header">
+        <h2>📢 Topic Channel</h2>
+        <button class="close-btn" on:click={() => (showTopic = false)}>✕</button>
+      </div>
+      <TopicControl />
+    </div>
+  </div>
+{/if}
+
 <!-- Main Chat Interface -->
 <ChatInterface 
   on:showSettings={() => (showSettings = true)}
   on:showCouncil={() => (showCouncil = true)}
+  on:showTopic={() => (showTopic = true)}
 />
 
 <PoHVIndicator />
