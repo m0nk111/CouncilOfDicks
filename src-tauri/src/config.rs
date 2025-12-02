@@ -5,6 +5,8 @@ pub struct AppConfig {
     pub ollama_url: String,
     pub ollama_model: String,
     pub debug_enabled: bool,
+    pub initial_topic: Option<String>,
+    pub topic_interval: u64,
 }
 
 impl Default for AppConfig {
@@ -13,6 +15,8 @@ impl Default for AppConfig {
             ollama_url: "http://192.168.1.5:11434".to_string(),
             ollama_model: "mistral:7b".to_string(),
             debug_enabled: true,
+            initial_topic: Some("The Future of AI".to_string()),
+            topic_interval: 300,
         }
     }
 }

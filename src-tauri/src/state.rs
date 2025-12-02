@@ -149,6 +149,11 @@ impl AppState {
         // We'll have to start it separately or use a lazy initialization pattern.
         // For now, let's just create it here.
 
+        // Initialize topic if configured
+        if let Some(topic) = &base_config.initial_topic {
+            topic_manager.set_topic(topic.clone(), Some(base_config.topic_interval));
+        }
+
         let state = Self {
             config: Arc::new(Mutex::new(base_config)),
             logger: logger.clone(),
