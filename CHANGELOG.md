@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (2025-12-02)
+- **Council Benchmark Suite**: Added a "Benchmarks" tab to the Council Panel with 7 diagnostic questions (Logic Traps, Hallucination Triggers, etc.) to test Council consensus against known LLM failure modes.
 - **Proof of Human Value (PoHV) v1**: Implemented a heartbeat mechanism that tracks human interaction.
   - **Backend**: `PoHVSystem` tracks last interaction time and enforces a 10-minute timeout.
   - **Frontend**: New `PoHVIndicator` component shows a countdown timer and allows users to send heartbeats.

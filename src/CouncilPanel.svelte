@@ -8,14 +8,17 @@
     councilGetSession,
     councilListSessions,
     verdictListRecent,
+    getBenchmarks,
     type Verdict,
+    type Benchmark,
   } from "./api";
 
   // State
   let agents: any[] = [];
   let sessions: any[] = [];
   let verdicts: Verdict[] = [];
-  let activeTab: "sessions" | "verdicts" = "sessions";
+  let benchmarks: Benchmark[] = [];
+  let activeTab: "sessions" | "verdicts" | "benchmarks" = "sessions";
   let selectedAgents: Set<string> = new Set();
   let question = "";
   let loading = false;
@@ -33,6 +36,7 @@
     await loadAgents();
     await loadSessions();
     await loadVerdicts();
+    await loadBenchmarks();
   });
 
   async function loadAgents() {
@@ -67,6 +71,26 @@
       console.warn("Failed to load verdicts:", e);
       verdicts = [];
     }
+  }
+
+  async function loadBenchmarks() {
+    try {
+      benchmarks = await getBenchmarks();
+    } catch (e: any) {
+      console.warn("Failed to load benchmarks:", e);
+      benchmarks = [];
+    }
+  }
+
+  function runBenchmark(benchmark: Benchmark) {
+    question = benchmark.question;
+    // Auto-select all agents if none selected
+    if (selectedAgents.size === 0 && agents.length > 0) {
+      agents.forEach(a => selectedAgents.add(a.id));
+      selectedAgents = selectedAgents;
+    }
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function toggleAgent(agentId: string) {
@@ -344,6 +368,13 @@
       >
         ⚖️ Verdict History
       </button>
+      <button 
+        class="tab-btn" 
+        class:active={activeTab === "benchmarks"} 
+        on:click={() => activeTab = "benchmarks"}
+      >
+        🧪 Benchmarks
+      </button>
     </div>
 
     {#if activeTab === "sessions"}
@@ -373,7 +404,7 @@
           {/each}
         {/if}
       </div>
-    {:else}
+    {:else if activeTab === "verdicts"}
       <div class="verdicts-list">
         {#if verdicts.length === 0}
           <p class="empty-state">No verdicts recorded yet.</p>
@@ -400,6 +431,24 @@
             </div>
           {/each}
         {/if}
+      </div>
+    {:else}
+      <div class="benchmarks-list">
+        {#each benchmarks as benchmark (benchmark.id)}
+          <div class="benchmark-card">
+            <div class="benchmark-header">
+              <span class="benchmark-category">{benchmark.category}</span>
+              <span class="benchmark-difficulty" class:hard={benchmark.difficulty === "Hard"}>{benchmark.difficulty}</span>
+            </div>
+            <div class="benchmark-question">{benchmark.question}</div>
+            <div class="benchmark-trap">
+              <strong>⚠️ Trap:</strong> {benchmark.trap_explanation}
+            </div>
+            <button class="run-benchmark-btn" on:click={() => runBenchmark(benchmark)}>
+              🚀 Run This Test
+            </button>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>
@@ -1080,5 +1129,76 @@
     color: #ff9800;
     font-size: 0.9rem;
     font-style: italic;
+  }
+
+  /* Benchmarks */
+  .benchmarks-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .benchmark-card {
+    background: #0f1419;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .benchmark-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .benchmark-category {
+    color: #00d4ff;
+    font-weight: 600;
+  }
+
+  .benchmark-difficulty {
+    color: #4caf50;
+  }
+
+  .benchmark-difficulty.hard {
+    color: #ff4444;
+  }
+
+  .benchmark-question {
+    color: #e0e0e0;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+    flex: 1;
+  }
+
+  .benchmark-trap {
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #ffb74d;
+  }
+
+  .run-benchmark-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: #333;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .run-benchmark-btn:hover {
+    background: #444;
+    border-color: #00d4ff;
+    color: #00d4ff;
   }
 </style>

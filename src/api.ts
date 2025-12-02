@@ -26,7 +26,7 @@ const API_BASE_URL = window.location.hostname === "localhost"
   : `http://${window.location.hostname}:8080`;
 
 export interface AppConfig {
-  ollama_url: string;
+  olloma_url: string;
   ollama_model: string;
   debug_enabled: boolean;
 }
@@ -543,4 +543,18 @@ export async function pohvHeartbeat(): Promise<PoHVState> {
 
 export async function pohvGetStatus(): Promise<PoHVState> {
   return await apiCall<PoHVState>("pohv_get_status", "GET /api/pohv/status");
+}
+
+// Benchmark Types
+export interface Benchmark {
+  id: string;
+  category: string;
+  question: string;
+  trap_explanation: string;
+  difficulty: string;
+}
+
+// Benchmark Commands
+export async function getBenchmarks(): Promise<Benchmark[]> {
+  return await apiCall<Benchmark[]>("get_benchmarks", "GET /api/benchmarks");
 }

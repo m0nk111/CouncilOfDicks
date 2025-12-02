@@ -17,6 +17,7 @@ mod personalities;
 mod pohv;
 pub mod prompt;
 mod protocol;
+mod benchmarks;
 mod providers;
 pub mod state;
 mod verdict_store;
@@ -25,6 +26,7 @@ pub mod web_server;
 #[cfg(test)]
 mod tests;
 
+use benchmarks::get_benchmarks;
 use config::AppConfig;
 use pohv::{pohv_get_status, pohv_heartbeat};
 use prompt::compose_system_prompt;
@@ -1041,7 +1043,8 @@ pub fn run() {
             agent_list,
             agent_get,
             agent_list_active,
-            agent_get_tools
+            agent_get_tools,
+            get_benchmarks
         ])
         .setup(move |app| {
             if cfg!(debug_assertions) {
