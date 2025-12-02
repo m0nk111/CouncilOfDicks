@@ -10,6 +10,7 @@ use crate::logger::Logger;
 use crate::mcp::McpServer;
 use crate::metrics::MetricsCollector;
 use crate::p2p_manager::P2PManager;
+use crate::pohv::PoHVSystem;
 use crate::verdict_store::VerdictStore;
 use std::fs;
 use std::path::PathBuf;
@@ -33,6 +34,7 @@ pub struct AppState {
     pub websocket_broadcast: Arc<broadcast::Sender<ChatMessage>>,
     pub agent_pool: Arc<AgentPool>,
     pub verdict_store: Option<Arc<VerdictStore>>,
+    pub pohv_system: Arc<PoHVSystem>,
 }
 
 impl AppState {
@@ -136,6 +138,7 @@ impl AppState {
         let spam_detector = Arc::new(SpamDetector::new());
         let (ws_tx, _ws_rx) = broadcast::channel::<ChatMessage>(100);
         let agent_pool = Arc::new(AgentPool::new());
+        let pohv_system = Arc::new(PoHVSystem::new());
 
         Self {
             config: Arc::new(Mutex::new(base_config)),
@@ -153,10 +156,10 @@ impl AppState {
             websocket_broadcast: Arc::new(ws_tx),
             agent_pool,
             verdict_store,
+            pohv_system,
         }
     }
-
-    pub fn get_config(&self) -> AppConfig {
+}    pub fn get_config(&self) -> AppConfig {
         self.config.lock().unwrap().clone()
     }
 

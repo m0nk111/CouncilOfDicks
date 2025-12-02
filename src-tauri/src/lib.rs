@@ -14,6 +14,7 @@ mod ollama;
 mod p2p;
 mod p2p_manager;
 mod personalities;
+mod pohv;
 pub mod prompt;
 mod protocol;
 mod providers;
@@ -25,6 +26,7 @@ pub mod web_server;
 mod tests;
 
 use config::AppConfig;
+use pohv::{pohv_get_status, pohv_heartbeat};
 use prompt::compose_system_prompt;
 use providers::AIProvider;
 use state::AppState;
@@ -1016,6 +1018,8 @@ pub fn run() {
             kb_list_all,
             verdict_list_recent,
             verdict_get,
+            pohv_heartbeat,
+            pohv_get_status,
             provider_add,
             provider_list,
             provider_remove,

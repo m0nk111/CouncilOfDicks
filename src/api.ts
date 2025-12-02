@@ -59,11 +59,11 @@ export interface Verdict {
 }
 
 export async function verdictListRecent(limit: number = 10): Promise<Verdict[]> {
-  return await apiCall<Verdict[]>("verdict_list_recent", { limit });
+  return await apiCall<Verdict[]>("verdict_list_recent", "GET /api/verdicts/recent", { limit });
 }
 
 export async function verdictGet(verdictId: string): Promise<Verdict> {
-  return await apiCall<Verdict>("verdict_get", { verdict_id: verdictId });
+  return await apiCall<Verdict>("verdict_get", "GET /api/verdicts/get", { verdict_id: verdictId });
 }
 
 // Chat types
@@ -526,3 +526,21 @@ export async function agentGetTools(): Promise<Tool[]> {
 // Aliases for backward compatibility
 export const agentCreate = agentAdd;
 export const agentDelete = agentRemove;
+
+// PoHV Types
+export type PoHVStatus = "Active" | "Warning" | "Locked";
+
+export interface PoHVState {
+  status: PoHVStatus;
+  seconds_remaining: number;
+  last_interaction: number;
+}
+
+// PoHV Commands
+export async function pohvHeartbeat(): Promise<PoHVState> {
+  return await apiCall<PoHVState>("pohv_heartbeat", "POST /api/pohv/heartbeat");
+}
+
+export async function pohvGetStatus(): Promise<PoHVState> {
+  return await apiCall<PoHVState>("pohv_get_status", "GET /api/pohv/status");
+}

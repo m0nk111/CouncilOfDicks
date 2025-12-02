@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (2025-12-02)
+- **Proof of Human Value (PoHV) v1**: Implemented a heartbeat mechanism that tracks human interaction.
+  - **Backend**: `PoHVSystem` tracks last interaction time and enforces a 10-minute timeout.
+  - **Frontend**: New `PoHVIndicator` component shows a countdown timer and allows users to send heartbeats.
+  - **Safety**: System enters "Warning" state after 9 minutes and "Locked" state after 10 minutes, requiring explicit human verification to unlock.
 - **Council Verdict Timeline UI**: Added a "Verdict History" tab to the Council Panel to view past consensus decisions, confidence scores, and reasoning
 - **Council Verdict Store**: SQLite-backed persistence for every consensus result, including new `verdict_list_recent` and `verdict_get` commands so the UI (and MCP tools) can browse final decisions even after restarts
 - **State Initialization**: AppState boot now provisions the `data/` directory, wires up the KnowledgeBank, and prepares the verdict store automatically (Tauri + HTTP modes both benefit)

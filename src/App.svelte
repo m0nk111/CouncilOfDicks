@@ -2,6 +2,7 @@
   import ChatInterface from "./ChatInterface.svelte";
   import ProvidersPanel from "./ProvidersPanel.svelte";
   import CouncilPanel from "./CouncilPanel.svelte";
+  import PoHVIndicator from "./PoHVIndicator.svelte";
 
   let showSettings = false;
   let showCouncil = false;
@@ -38,6 +39,8 @@
   on:showSettings={() => (showSettings = true)}
   on:showCouncil={() => (showCouncil = true)}
 />
+
+<PoHVIndicator />
 
 <style>
   :global(body) {
