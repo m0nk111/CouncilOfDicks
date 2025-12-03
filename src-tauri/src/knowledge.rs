@@ -1,5 +1,7 @@
 use crate::deliberation::{DeliberationResult, DeliberationRound, MemberResponse};
 use crate::logger::{LogLevel, Logger};
+use crate::protocol::{CouncilSession, CouncilResponse, SessionStatus};
+use crate::reputation::{AgentReputation, AgentTier, ReputationScore};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, Row};
 use std::sync::Arc;
@@ -103,6 +105,21 @@ impl KnowledgeBank {
         .await
         .map_err(|e| format!("Failed to create deliberations table: {}", e))?;
 
+        // Topics history table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS topics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                created_by TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to create topics table: {}", e))?;
+
         // Rounds table
         sqlx::query(
             r#"
@@ -167,6 +184,25 @@ impl KnowledgeBank {
         .execute(&self.pool)
         .await
         .map_err(|e| format!("Failed to create embeddings table: {}", e))?;
+
+        // Reputation table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS reputation (
+                agent_id TEXT PRIMARY KEY,
+                tier TEXT NOT NULL,
+                accuracy REAL NOT NULL,
+                reasoning REAL NOT NULL,
+                contribution REAL NOT NULL,
+                total_votes INTEGER NOT NULL,
+                successful_consensus INTEGER NOT NULL,
+                last_updated INTEGER NOT NULL
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to create reputation table: {}", e))?;
 
         // FTS5 for keyword search fallback
         sqlx::query(
@@ -635,6 +671,252 @@ impl KnowledgeBank {
             .iter()
             .map(|row| (row.get("id"), row.get("question"), row.get("completed")))
             .collect())
+    }
+
+    /// Record a new topic in history
+    pub async fn add_topic(&self, topic: &str, created_by: Option<&str>) -> Result<(), String> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or(std::time::Duration::from_secs(0))
+            .as_secs() as i64;
+
+        sqlx::query(
+            r#"
+            INSERT INTO topics (topic, created_at, created_by)
+            VALUES (?, ?, ?)
+            "#,
+        )
+        .bind(topic)
+        .bind(timestamp)
+        .bind(created_by)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to record topic: {}", e))?;
+
+        self.logger.log(
+            LogLevel::Debug,
+            "knowledge",
+            &format!("📚 Recorded topic in history: {}", topic),
+        );
+
+        Ok(())
+    }
+
+    /// Get recent topics
+    pub async fn get_recent_topics(&self, limit: i64) -> Result<Vec<(String, i64)>, String> {
+        let rows = sqlx::query(
+            r#"
+            SELECT topic, created_at FROM topics
+            ORDER BY created_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to fetch topics: {}", e))?;
+
+        let topics = rows
+            .into_iter()
+            .map(|row| {
+                (
+                    row.get::<String, _>("topic"),
+                    row.get::<i64, _>("created_at"),
+                )
+            })
+            .collect();
+
+        Ok(topics)
+    }
+
+    /// Save agent reputation
+    pub async fn save_reputation(&self, reputation: &AgentReputation) -> Result<(), String> {
+        let tier_str = serde_json::to_string(&reputation.tier).unwrap_or_default();
+        
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO reputation 
+            (agent_id, tier, accuracy, reasoning, contribution, total_votes, successful_consensus, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&reputation.agent_id)
+        .bind(tier_str)
+        .bind(reputation.score.accuracy)
+        .bind(reputation.score.reasoning)
+        .bind(reputation.score.contribution)
+        .bind(reputation.score.total_votes)
+        .bind(reputation.score.successful_consensus)
+        .bind(reputation.last_updated as i64)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to save reputation: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Load all agent reputations
+    pub async fn load_reputations(&self) -> Result<Vec<AgentReputation>, String> {
+        let rows = sqlx::query(
+            r#"
+            SELECT agent_id, tier, accuracy, reasoning, contribution, total_votes, successful_consensus, last_updated
+            FROM reputation
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to load reputations: {}", e))?;
+
+        let mut reputations = Vec::new();
+
+        for row in rows {
+            let tier_str: String = row.get("tier");
+            let tier: AgentTier = serde_json::from_str(&tier_str).unwrap_or(AgentTier::Candidate);
+
+            reputations.push(AgentReputation {
+                agent_id: row.get("agent_id"),
+                tier,
+                score: ReputationScore {
+                    accuracy: row.get("accuracy"),
+                    reasoning: row.get("reasoning"),
+                    contribution: row.get("contribution"),
+                    total_votes: row.get("total_votes"),
+                    successful_consensus: row.get("successful_consensus"),
+                },
+                last_updated: row.get::<i64, _>("last_updated") as u64,
+            });
+        }
+
+        Ok(reputations)
+    }
+
+    /// Save or update council session
+    pub async fn save_session(&self, session: &CouncilSession) -> Result<(), String> {
+        // Save session
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO deliberations (id, question, consensus, created_at, completed)
+            VALUES (?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&session.id)
+        .bind(&session.question)
+        .bind(&session.consensus)
+        .bind(session.created_at as i64)
+        .bind(session.status == SessionStatus::ConsensusReached)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to save session: {}", e))?;
+
+        // Save responses (we delete all and re-insert for simplicity, or check existence)
+        // For now, let's just insert new ones. 
+        // Actually, simpler to just delete all for this session and re-insert.
+        // This is inefficient but safe for MVP.
+        
+        sqlx::query("DELETE FROM responses WHERE round_id IN (SELECT id FROM rounds WHERE deliberation_id = ?)")
+            .bind(&session.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| format!("Failed to clear old responses: {}", e))?;
+            
+        sqlx::query("DELETE FROM rounds WHERE deliberation_id = ?")
+            .bind(&session.id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| format!("Failed to clear old rounds: {}", e))?;
+
+        // Create a single "round" for now as our current model is single-round
+        let round_id = sqlx::query(
+            r#"
+            INSERT INTO rounds (deliberation_id, round_number)
+            VALUES (?, 1)
+            RETURNING id
+            "#,
+        )
+        .bind(&session.id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to create round: {}", e))?
+        .get::<i64, _>("id");
+
+        for response in &session.responses {
+            sqlx::query(
+                r#"
+                INSERT INTO responses (round_id, member_name, model, response, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+                "#,
+            )
+            .bind(round_id)
+            .bind(&response.peer_id) // Using peer_id as member_name
+            .bind(&response.model_name)
+            .bind(&response.response)
+            .bind(response.timestamp as i64)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| format!("Failed to save response: {}", e))?;
+        }
+
+        Ok(())
+    }
+
+    /// Load all council sessions
+    pub async fn load_sessions(&self) -> Result<Vec<CouncilSession>, String> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, question, consensus, created_at, completed
+            FROM deliberations
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to load sessions: {}", e))?;
+
+        let mut sessions = Vec::new();
+
+        for row in rows {
+            let id: String = row.get("id");
+            let completed: bool = row.get("completed");
+            
+            // Load responses
+            let response_rows = sqlx::query(
+                r#"
+                SELECT r.member_name, r.model, r.response, r.timestamp
+                FROM responses r
+                JOIN rounds ro ON r.round_id = ro.id
+                WHERE ro.deliberation_id = ?
+                "#,
+            )
+            .bind(&id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| format!("Failed to load responses: {}", e))?;
+
+            let mut responses = Vec::new();
+            for r_row in response_rows {
+                responses.push(CouncilResponse {
+                    model_name: r_row.get("model"),
+                    response: r_row.get("response"),
+                    peer_id: r_row.get("member_name"),
+                    timestamp: r_row.get::<i64, _>("timestamp") as u64,
+                    signature: None, // Not stored in DB yet
+                    public_key: None,
+                });
+            }
+
+            sessions.push(CouncilSession {
+                id,
+                question: row.get("question"),
+                responses,
+                commitments: Vec::new(), // Not persisted
+                reveals: Vec::new(),     // Not persisted
+                consensus: row.get("consensus"),
+                status: if completed { SessionStatus::ConsensusReached } else { SessionStatus::GatheringResponses },
+                created_at: row.get::<i64, _>("created_at") as u64,
+            });
+        }
+
+        Ok(sessions)
     }
 }
 

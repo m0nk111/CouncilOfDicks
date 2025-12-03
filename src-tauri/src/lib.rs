@@ -19,8 +19,8 @@ pub mod prompt;
 mod protocol;
 mod benchmarks;
 mod providers;
+pub mod reputation;
 pub mod state;
-mod verdict_store;
 pub mod web_server;
 pub mod topic_manager;
 
@@ -32,12 +32,19 @@ use config::AppConfig;
 use pohv::{pohv_get_status, pohv_heartbeat};
 use prompt::compose_system_prompt;
 use providers::AIProvider;
+use reputation::reputation_get;
 use state::AppState;
-use topic_manager::{topic_get_status, topic_set, topic_stop};
+use topic_manager::{topic_get_status, topic_set, topic_stop, topic_history};
 
 // Tauri commands
 #[tauri::command]
 async fn ask_ollama(question: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
+    // PoHV Safety Check
+    if state.pohv_system.is_locked() {
+        state.log_error("ask_ollama", "❌ Action blocked: Proof of Human Value timeout. Please interact with the UI.");
+        return Err("System locked due to inactivity. Please move your mouse or interact with the UI to prove you are human.".to_string());
+    }
+
     let config = state.get_config();
 
     state.log_debug("ask_ollama", &format!("Question: {}", question));
@@ -285,41 +292,41 @@ async fn council_calculate_consensus(
     session_id: String,
 ) -> Result<Option<String>, String> {
     state.log_info(
-        "council_calculate_consensus",
-        &format!("Calculating consensus for session {}", session_id),
+        "council_consensus",
+        &format!("Calculating consensus for: {}", session_id),
     );
+    let result = state.council_manager.calculate_consensus(&session_id).await?;
 
-    let consensus = state
-        .council_manager
-        .calculate_consensus(&session_id)
-        .await?;
-
-    if let Some(ref result) = consensus {
+    if let Some(consensus) = &result {
         state.log_success(
-            "council_calculate_consensus",
-            &format!("Consensus reached: {}", result),
+            "council_consensus",
+            &format!("Consensus reached: {}", consensus),
         );
+        
+        // Update reputations
+        let _ = state.council_manager.update_reputations(&session_id, state.reputation_manager.clone()).await;
 
-        if let Some(store) = &state.verdict_store {
-            if let Some(session) = state.council_manager.get_session(&session_id).await {
-                if let Err(e) = store.store_verdict(&session).await {
-                    state.log_error(
-                        "verdict_store",
-                        &format!("Failed to persist verdict {}: {}", session_id, e),
-                    );
-                } else {
-                    state.log_success(
-                        "verdict_store",
-                        &format!("Stored verdict for session {}", session_id),
-                    );
-                }
-            }
+        // Broadcast reputation updates (P2P Sync)
+        if let Some(session) = state.council_manager.get_session(&session_id).await {
+             let my_peer_id = state.p2p_manager.status().await.peer_id.unwrap_or_default();
+             
+             for reveal in session.reveals {
+                 let agent_id = reveal.voter_peer_id;
+                 if let Some(rep) = state.reputation_manager.get_reputation(&agent_id).await {
+                     let msg = crate::protocol::CouncilMessage::ReputationSync {
+                         peer_id: my_peer_id.clone(),
+                         reputation: rep,
+                     };
+                     // Fire and forget broadcast
+                     let _ = state.p2p_manager.publish("council", msg).await;
+                 }
+             }
         }
     } else {
-        state.log_info("council_calculate_consensus", "No consensus reached");
+        state.log_info("council_consensus", "No consensus reached yet");
     }
 
-    Ok(consensus)
+    Ok(result)
 }
 
 // Crypto commands
@@ -553,25 +560,43 @@ async fn kb_list_all(
 async fn verdict_list_recent(
     state: tauri::State<'_, AppState>,
     limit: Option<usize>,
-) -> Result<Vec<verdict_store::CouncilVerdictRecord>, String> {
+) -> Result<Vec<crate::protocol::CouncilVerdictRecord>, String> {
     let max = limit.unwrap_or(20);
-    if let Some(store) = &state.verdict_store {
-        store.list_recent(max).await
-    } else {
-        Err("Verdict storage not initialized".to_string())
+    let mut verdicts = state.council_manager.get_recent_verdicts().await;
+    if verdicts.len() > max {
+        verdicts.truncate(max);
     }
+    Ok(verdicts)
 }
 
 #[tauri::command]
 async fn verdict_get(
     state: tauri::State<'_, AppState>,
     session_id: String,
-) -> Result<Option<verdict_store::CouncilVerdictRecord>, String> {
-    if let Some(store) = &state.verdict_store {
-        store.get(&session_id).await
-    } else {
-        Err("Verdict storage not initialized".to_string())
+) -> Result<Option<crate::protocol::CouncilVerdictRecord>, String> {
+    let session = state.council_manager.get_session(&session_id).await;
+    
+    if let Some(s) = session {
+        if s.status == crate::protocol::SessionStatus::ConsensusReached && s.consensus.is_some() {
+             let participants: Vec<String> = s
+                    .responses
+                    .iter()
+                    .map(|r| r.model_name.clone())
+                    .collect();
+            
+            return Ok(Some(crate::protocol::CouncilVerdictRecord {
+                session_id: s.id.clone(),
+                question: s.question.clone(),
+                verdict: s.consensus.clone().unwrap(),
+                response_count: s.responses.len(),
+                participants,
+                created_at: s.created_at,
+                finalized_at: s.created_at,
+            }));
+        }
     }
+    
+    Ok(None)
 }
 
 // Chat commands
@@ -1024,9 +1049,11 @@ pub fn run() {
             verdict_get,
             pohv_heartbeat,
             pohv_get_status,
+            reputation_get,
             topic_get_status,
             topic_set,
             topic_stop,
+            topic_history,
             provider_add,
             provider_list,
             provider_remove,

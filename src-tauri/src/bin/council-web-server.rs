@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Debug: {}\n", config.debug_enabled);
 
     // Initialize components
-    let council_manager = Arc::new(CouncilSessionManager::new());
+    let council_manager = Arc::new(CouncilSessionManager::new(None));
     let agent_pool = Arc::new(AgentPool::new());
 
     println!("✅ Council manager initialized");

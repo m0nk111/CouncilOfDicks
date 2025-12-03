@@ -140,6 +140,13 @@ impl TopicManager {
 
     // Called by the background loop
     pub async fn tick(&self, app_state: Arc<AppState>) {
+        // Check PoHV status first - Safety Mechanism
+        if app_state.pohv_system.is_locked() {
+            // If locked, we do not process any topics.
+            // We could also log a warning if we haven't recently.
+            return;
+        }
+
         // First, check if we need to run, without holding the lock across await
         let should_run = {
             let state = self.state.lock().unwrap();
@@ -194,9 +201,19 @@ impl TopicManager {
         if let (Some(topic), Some(agent_id)) = (topic, agent_id) {
             // Execute the agent response
             if let Ok(agent) = app_state.agent_pool.get_agent(&agent_id).await {
+                // Build RAG context if available
+                let mut context_str = String::new();
+                if let Some(kb) = &app_state.knowledge_bank {
+                    if let Ok(rag) = kb.build_rag_context(&topic, 3).await {
+                        if !rag.relevant_decisions.is_empty() {
+                            context_str = format!("\n\nRELEVANT PAST DECISIONS:\n{}", rag.context_text);
+                        }
+                    }
+                }
+
                 let prompt = format!(
-                    "TOPIC DISCUSSION\n\nTopic: {}\n\nPlease provide your perspective on this topic. Keep it concise and insightful. Start your response with your opinion.",
-                    topic
+                    "TOPIC DISCUSSION\n\nTopic: {}\n{}\n\nPlease provide your perspective on this topic. Keep it concise and insightful. Start your response with your opinion. If relevant, reference the past decisions provided.",
+                    topic, context_str
                 );
 
                 let config = app_state.get_config();
@@ -265,7 +282,26 @@ pub async fn topic_set(topic: String, interval: Option<u64>, state: tauri::State
     // Try to set topic (will fail if validation fails)
     state.topic_manager.set_topic(topic.clone(), Some(interval_val))?;
     
+    // Save to Knowledge Bank if available
+    if let Some(kb) = &state.knowledge_bank {
+        let peer_id = state.p2p_manager.status().await.peer_id.unwrap_or_else(|| "local".to_string());
+        if let Err(e) = kb.add_topic(&topic, Some(&peer_id)).await {
+            state.logger.warn("topic_manager", &format!("Failed to save topic to history: {}", e));
+        }
+    }
+
     // Broadcast to network
+    // We need to clone the Arc<AppState> properly. state.inner() returns &AppState.
+    // But broadcast_topic takes Arc<AppState>.
+    // We can't easily get Arc<AppState> from tauri::State<AppState> directly if it wasn't created as Arc.
+    // However, AppState fields are mostly Arcs, so we can just pass the fields we need, or change broadcast_topic signature.
+    // But wait, broadcast_topic takes Arc<AppState>.
+    // Let's look at how it's called.
+    // state.topic_manager.broadcast_topic(Arc::new(state.inner().clone()), topic, interval_val).await;
+    // AppState derives Clone? Let's check state.rs.
+    // If AppState derives Clone, then state.inner().clone() creates a new AppState struct with cloned Arcs.
+    // Then Arc::new(...) wraps it. This is fine.
+    
     state.topic_manager.broadcast_topic(Arc::new(state.inner().clone()), topic, interval_val).await;
     
     Ok(state.topic_manager.get_status())
@@ -280,4 +316,13 @@ pub fn topic_stop(state: tauri::State<AppState>) -> TopicStatus {
 #[tauri::command]
 pub fn topic_get_status(state: tauri::State<AppState>) -> TopicStatus {
     state.topic_manager.get_status()
+}
+
+#[tauri::command]
+pub async fn topic_history(limit: Option<i64>, state: tauri::State<'_, AppState>) -> Result<Vec<(String, i64)>, String> {
+    if let Some(kb) = &state.knowledge_bank {
+        kb.get_recent_topics(limit.unwrap_or(10)).await
+    } else {
+        Ok(Vec::new())
+    }
 }

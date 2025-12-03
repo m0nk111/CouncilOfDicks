@@ -197,10 +197,14 @@ impl P2PManager {
                                             app_state.logger.info("p2p", &format!("Received TopicUpdate from {}: {}", set_by_peer_id, topic));
                                             
                                             // Validate and set topic
-                                            // We use set_topic which includes validation
-                                            // If validation fails (e.g. spam), we ignore it
                                             if let Err(e) = app_state.topic_manager.set_topic(topic, Some(interval)) {
                                                 app_state.logger.warn("p2p", &format!("Ignored invalid topic update: {}", e));
+                                            }
+                                        },
+                                        crate::protocol::CouncilMessage::ReputationSync { peer_id, reputation } => {
+                                            app_state.logger.info("p2p", &format!("Received ReputationSync from {}", peer_id));
+                                            if let Err(e) = app_state.reputation_manager.update_from_sync(reputation).await {
+                                                app_state.logger.warn("p2p", &format!("Failed to update reputation: {}", e));
                                             }
                                         },
                                         _ => {}

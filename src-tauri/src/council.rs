@@ -7,18 +7,34 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::knowledge::KnowledgeBank;
+
 /// Manages council deliberation sessions
 pub struct CouncilSessionManager {
     sessions: Arc<Mutex<HashMap<String, CouncilSession>>>,
     consensus_threshold: f64, // Byzantine fault tolerance: 67%
+    knowledge_bank: Option<Arc<KnowledgeBank>>,
 }
 
 impl CouncilSessionManager {
     /// Create new session manager
-    pub fn new() -> Self {
+    pub fn new(knowledge_bank: Option<Arc<KnowledgeBank>>) -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             consensus_threshold: 0.67,
+            knowledge_bank,
+        }
+    }
+
+    /// Load sessions from DB
+    pub async fn load_from_db(&self) {
+        if let Some(kb) = &self.knowledge_bank {
+            if let Ok(loaded_sessions) = kb.load_sessions().await {
+                let mut sessions = self.sessions.lock().await;
+                for session in loaded_sessions {
+                    sessions.insert(session.id.clone(), session);
+                }
+            }
         }
     }
 
@@ -42,7 +58,12 @@ impl CouncilSessionManager {
         };
 
         let mut sessions = self.sessions.lock().await;
-        sessions.insert(session_id.clone(), session);
+        sessions.insert(session_id.clone(), session.clone());
+
+        // Save to DB
+        if let Some(kb) = &self.knowledge_bank {
+            let _ = kb.save_session(&session).await;
+        }
 
         session_id
     }
@@ -77,6 +98,11 @@ impl CouncilSessionManager {
             signature,
             public_key,
         });
+
+        // Save to DB
+        if let Some(kb) = &self.knowledge_bank {
+            let _ = kb.save_session(session).await;
+        }
 
         Ok(())
     }
@@ -173,7 +199,7 @@ impl CouncilSessionManager {
         Ok(())
     }
 
-    /// Calculate consensus if threshold reached
+    /// Calculate consensus based on revealed votes
     pub async fn calculate_consensus(&self, session_id: &str) -> Result<Option<String>, String> {
         let mut sessions = self.sessions.lock().await;
         let session = sessions.get_mut(session_id).ok_or("Session not found")?;
@@ -182,29 +208,68 @@ impl CouncilSessionManager {
             return Err("Session not in reveal phase".to_string());
         }
 
-        // Count votes
-        let mut vote_counts: HashMap<String, usize> = HashMap::new();
-        for reveal in &session.reveals {
-            *vote_counts.entry(reveal.vote.clone()).or_insert(0) += 1;
-        }
-
         let total_votes = session.reveals.len();
         if total_votes == 0 {
             return Ok(None);
         }
 
-        // Find consensus (67% threshold)
-        for (vote, count) in vote_counts.iter() {
-            let percentage = *count as f64 / total_votes as f64;
-            if percentage >= self.consensus_threshold {
+        let mut vote_counts = HashMap::new();
+        for reveal in &session.reveals {
+            *vote_counts.entry(reveal.vote.clone()).or_insert(0) += 1;
+        }
+
+        let threshold = (total_votes as f64 * self.consensus_threshold).ceil() as usize;
+
+        for (vote, count) in vote_counts {
+            if count >= threshold {
                 session.consensus = Some(vote.clone());
                 session.status = SessionStatus::ConsensusReached;
+                
+                // Save to DB
+                if let Some(kb) = &self.knowledge_bank {
+                    let _ = kb.save_session(session).await;
+                }
+
                 return Ok(Some(vote.clone()));
             }
         }
 
         // No consensus reached
         Ok(None)
+    }
+
+    /// Update reputation scores based on consensus
+    pub async fn update_reputations(
+        &self,
+        session_id: &str,
+        reputation_manager: Arc<crate::reputation::ReputationManager>,
+    ) -> Result<(), String> {
+        let sessions = self.sessions.lock().await;
+        let session = sessions.get(session_id).ok_or("Session not found")?;
+
+        if let Some(consensus) = &session.consensus {
+            // Find who voted for consensus
+            for reveal in &session.reveals {
+                let is_correct = reveal.vote == *consensus;
+                
+                // Accuracy: +0.1 for correct, -0.05 for incorrect
+                let accuracy_delta = if is_correct { 0.1 } else { -0.05 };
+                
+                // Reasoning: +0.05 for participating
+                let reasoning_delta = 0.05;
+
+                // We need to map peer_id to agent_id. 
+                // In local mode, peer_id IS the agent_id (see gather_agent_response).
+                // In P2P mode, peer_id is the node ID, so we might not be able to update remote agent scores easily yet.
+                // For now, we assume local agents.
+                let agent_id = &reveal.voter_peer_id;
+
+                // Update score (fire and forget error handling for now)
+                let _ = reputation_manager.update_score(agent_id, accuracy_delta, reasoning_delta).await;
+            }
+        }
+
+        Ok(())
     }
 
     /// Get session by ID
@@ -391,6 +456,36 @@ impl CouncilSessionManager {
 
         Ok(())
     }
+
+    /// Get recent verdicts (finished sessions)
+    pub async fn get_recent_verdicts(&self) -> Vec<crate::protocol::CouncilVerdictRecord> {
+        let sessions = self.sessions.lock().await;
+        let mut verdicts: Vec<crate::protocol::CouncilVerdictRecord> = sessions
+            .values()
+            .filter(|s| s.status == SessionStatus::ConsensusReached && s.consensus.is_some())
+            .map(|s| {
+                let participants: Vec<String> = s
+                    .responses
+                    .iter()
+                    .map(|r| r.model_name.clone())
+                    .collect();
+                
+                crate::protocol::CouncilVerdictRecord {
+                    session_id: s.id.clone(),
+                    question: s.question.clone(),
+                    verdict: s.consensus.clone().unwrap(),
+                    response_count: s.responses.len(),
+                    participants,
+                    created_at: s.created_at,
+                    finalized_at: s.created_at, // Using created_at as approximation for now
+                }
+            })
+            .collect();
+        
+        // Sort by created_at descending (newest first)
+        verdicts.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        verdicts
+    }
 }
 
 // Make CouncilSessionManager cloneable for parallel execution
@@ -399,6 +494,7 @@ impl Clone for CouncilSessionManager {
         Self {
             sessions: Arc::clone(&self.sessions),
             consensus_threshold: self.consensus_threshold,
+            knowledge_bank: self.knowledge_bank.clone(),
         }
     }
 }
@@ -409,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_creation() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test question?".to_string()).await;
 
         let session = manager.get_session(&session_id).await;
@@ -423,7 +519,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_response() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test?".to_string()).await;
 
         let result = manager
@@ -446,7 +542,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_commitment_phase() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test?".to_string()).await;
 
         manager
@@ -470,7 +566,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_blind_voting() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test?".to_string()).await;
 
         // Setup session
@@ -518,7 +614,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_consensus_calculation() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test?".to_string()).await;
 
         // Setup
@@ -569,7 +665,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_consensus() {
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let session_id = manager.create_session("Test?".to_string()).await;
 
         // Setup
@@ -619,7 +715,7 @@ mod tests {
     async fn test_agent_pool_integration() {
         use crate::agents::{Agent, AgentPool};
 
-        let manager = CouncilSessionManager::new();
+        let manager = CouncilSessionManager::new(None);
         let pool = Arc::new(AgentPool::new());
 
         // Add test agents

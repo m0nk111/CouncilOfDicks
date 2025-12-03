@@ -48,6 +48,64 @@ mod tests {
         logger.debug("test", "This should log now");
     }
 
+    #[tokio::test]
+    async fn test_knowledge_bank_persistence() {
+        use crate::knowledge::KnowledgeBank;
+        use crate::protocol::{CouncilSession, SessionStatus};
+        use crate::reputation::{AgentReputation, AgentTier, ReputationScore};
+        use std::sync::Arc;
+
+        // 1. Initialize in-memory DB
+        let logger = Arc::new(Logger::new(true));
+        let kb = KnowledgeBank::new(
+            "sqlite::memory:",
+            logger,
+            "http://localhost:11434".to_string(),
+        )
+        .await
+        .expect("Failed to create KnowledgeBank");
+
+        // 2. Test Session Persistence
+        let session = CouncilSession {
+            id: "test-session-1".to_string(),
+            question: "What is the meaning of life?".to_string(),
+            responses: vec![],
+            commitments: vec![],
+            reveals: vec![],
+            consensus: Some("42".to_string()),
+            status: SessionStatus::ConsensusReached,
+            created_at: 1234567890,
+        };
+
+        kb.save_session(&session).await.expect("Failed to save session");
+
+        let loaded_sessions = kb.load_sessions().await.expect("Failed to load sessions");
+        assert_eq!(loaded_sessions.len(), 1);
+        assert_eq!(loaded_sessions[0].id, "test-session-1");
+        assert_eq!(loaded_sessions[0].consensus, Some("42".to_string()));
+
+                // 3. Test Reputation Persistence
+        let reputation = AgentReputation {
+            agent_id: "agent-007".to_string(),
+            score: ReputationScore {
+                accuracy: 0.9,
+                reasoning: 0.8,
+                contribution: 0.7,
+                total_votes: 10,
+                successful_consensus: 9,
+            },
+            tier: AgentTier::Prime,
+            last_updated: 1234567890,
+        };
+
+        kb.save_reputation(&reputation).await.expect("Failed to save reputation");
+
+        let loaded_reputations = kb.load_reputations().await.expect("Failed to load reputations");
+        assert_eq!(loaded_reputations.len(), 1);
+        assert_eq!(loaded_reputations[0].agent_id, "agent-007");
+        assert_eq!(loaded_reputations[0].tier, AgentTier::Prime);
+    }
+
     #[test]
     fn test_metrics_initialization() {
         let metrics = MetricsCollector::new();

@@ -376,7 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_server_creation() {
-        let council_manager = Arc::new(CouncilSessionManager::new());
+        let council_manager = Arc::new(CouncilSessionManager::new(None));
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9001, council_manager, logger);
 
@@ -385,7 +385,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_start_stop() {
-        let council_manager = Arc::new(CouncilSessionManager::new());
+        let council_manager = Arc::new(CouncilSessionManager::new(None));
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9001, council_manager, logger);
 
@@ -402,7 +402,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_double_start() {
-        let council_manager = Arc::new(CouncilSessionManager::new());
+        let council_manager = Arc::new(CouncilSessionManager::new(None));
         let logger = Arc::new(Logger::new(false));
         let mcp = McpServer::new(9002, council_manager, logger);
 

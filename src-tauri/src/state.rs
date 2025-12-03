@@ -11,8 +11,8 @@ use crate::mcp::McpServer;
 use crate::metrics::MetricsCollector;
 use crate::p2p_manager::P2PManager;
 use crate::pohv::PoHVSystem;
+use crate::reputation::ReputationManager;
 use crate::topic_manager::TopicManager;
-use crate::verdict_store::VerdictStore;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -34,9 +34,9 @@ pub struct AppState {
     pub spam_detector: Arc<SpamDetector>,
     pub websocket_broadcast: Arc<broadcast::Sender<ChatMessage>>,
     pub agent_pool: Arc<AgentPool>,
-    pub verdict_store: Option<Arc<VerdictStore>>,
     pub pohv_system: Arc<PoHVSystem>,
     pub topic_manager: Arc<TopicManager>,
+    pub reputation_manager: Arc<ReputationManager>,
 }
 
 impl AppState {
@@ -51,7 +51,30 @@ impl AppState {
         let logger = Arc::new(Logger::new(false));
         logger.set_debug_enabled(base_config.debug_enabled);
 
-        let council_manager = Arc::new(CouncilSessionManager::new());
+        // Ensure data directory exists for persistence
+        let data_dir = PathBuf::from("./data");
+        if let Err(e) = fs::create_dir_all(&data_dir) {
+            logger.warn("storage", &format!("⚠️ Could not prepare data dir: {}", e));
+        }
+
+        // Initialize knowledge bank
+        let kb_path = data_dir.join("knowledge_bank.sqlite");
+        let kb_url = format!("sqlite://{}", kb_path.to_string_lossy());
+        let knowledge_bank =
+            match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone()).await
+            {
+                Ok(bank) => Some(Arc::new(bank)),
+                Err(e) => {
+                    logger.warn("knowledge", &format!("⚠️ Knowledge bank disabled: {}", e));
+                    None
+                }
+            };
+
+        let council_manager = Arc::new(CouncilSessionManager::new(knowledge_bank.clone()));
+        
+        // Load sessions from DB
+        council_manager.load_from_db().await;
+
         let mcp_server = Arc::new(McpServer::new(
             9001,
             council_manager.clone(),
@@ -91,39 +114,6 @@ impl AppState {
             Arc::new(identity)
         };
 
-        // Ensure data directory exists for persistence
-        let data_dir = PathBuf::from("./data");
-        if let Err(e) = fs::create_dir_all(&data_dir) {
-            logger.warn("storage", &format!("⚠️ Could not prepare data dir: {}", e));
-        }
-
-        // Initialize knowledge bank
-        let kb_path = data_dir.join("knowledge_bank.sqlite");
-        let kb_url = format!("sqlite://{}", kb_path.to_string_lossy());
-        let knowledge_bank =
-            match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone()).await
-            {
-                Ok(bank) => Some(Arc::new(bank)),
-                Err(e) => {
-                    logger.warn("knowledge", &format!("⚠️ Knowledge bank disabled: {}", e));
-                    None
-                }
-            };
-
-        // Initialize verdict store
-        let verdicts_path = data_dir.join("council_verdicts.sqlite");
-        let verdicts_url = format!("sqlite://{}", verdicts_path.to_string_lossy());
-        let verdict_store = match VerdictStore::new(&verdicts_url, logger.clone()).await {
-            Ok(store) => Some(Arc::new(store)),
-            Err(e) => {
-                logger.error(
-                    "verdict_store",
-                    &format!("❌ Verdict storage disabled: {}", e),
-                );
-                None
-            }
-        };
-
         // Initialize channel manager
         let channel_manager = Arc::new(ChannelManager::new());
         let _ = channel_manager.send_system_message(
@@ -142,12 +132,10 @@ impl AppState {
         let agent_pool = Arc::new(AgentPool::new());
         let pohv_system = Arc::new(PoHVSystem::new());
         let topic_manager = Arc::new(TopicManager::new());
-
-        // Start the topic loop
-        // We need to do this after we have the full AppState, which is tricky in `initialize`
-        // because we are constructing it.
-        // We'll have to start it separately or use a lazy initialization pattern.
-        // For now, let's just create it here.
+        let reputation_manager = Arc::new(ReputationManager::new(knowledge_bank.clone()));
+        
+        // Load reputations from DB
+        reputation_manager.load_from_db().await;
 
         // Initialize topic if configured
         if let Some(topic) = &base_config.initial_topic {
@@ -169,9 +157,9 @@ impl AppState {
             spam_detector,
             websocket_broadcast: Arc::new(ws_tx),
             agent_pool,
-            verdict_store: verdict_store,
             pohv_system,
             topic_manager,
+            reputation_manager,
         };
         
         // Start background tasks

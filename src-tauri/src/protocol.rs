@@ -1,6 +1,7 @@
 // Council message protocol for P2P communication
 
 use crate::crypto::SignedMessage;
+use crate::reputation::AgentReputation;
 use serde::{Deserialize, Serialize};
 
 /// Message types for council communication
@@ -20,6 +21,7 @@ pub enum CouncilMessage {
         model_name: String,
         signed_response: SignedMessage, // Content is signed, immutable
         peer_id: String,
+        reputation: Option<AgentReputation>, // Piggyback reputation
     },
 
     /// Blind vote commitment (hash of actual vote)
@@ -72,6 +74,12 @@ pub enum CouncilMessage {
         models: Vec<String>,
         reputation_tier: String,
     },
+    
+    /// Sync reputation scores
+    ReputationSync {
+        peer_id: String,
+        reputation: AgentReputation,
+    },
 }
 
 impl CouncilMessage {
@@ -97,6 +105,7 @@ impl CouncilMessage {
             CouncilMessage::HumanChallenge { .. } => "HumanChallenge",
             CouncilMessage::PeerAnnouncement { .. } => "PeerAnnouncement",
             CouncilMessage::TopicUpdate { .. } => "TopicUpdate",
+            CouncilMessage::ReputationSync { .. } => "ReputationSync",
         }
     }
 }
@@ -144,6 +153,18 @@ pub enum SessionStatus {
     RevealPhase,
     ConsensusReached,
     Failed,
+}
+
+/// Record of a finalized council verdict for history/UI
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CouncilVerdictRecord {
+    pub session_id: String,
+    pub question: String,
+    pub verdict: String,
+    pub response_count: usize,
+    pub participants: Vec<String>,
+    pub created_at: u64,
+    pub finalized_at: u64,
 }
 
 #[cfg(test)]
