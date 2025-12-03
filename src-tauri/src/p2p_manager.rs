@@ -194,15 +194,14 @@ impl P2PManager {
                                 if let Ok(council_msg) = crate::protocol::CouncilMessage::from_bytes(&message.data) {
                                     match council_msg {
                                         crate::protocol::CouncilMessage::TopicUpdate { topic, interval, set_by_peer_id, timestamp: _ } => {
-                                            // Update local topic
-                                            // Avoid infinite loop: check if we already have this topic?
-                                            // Or just set it.
-                                            // We need to access `app_state.topic_manager`.
-                                            // But we are in `P2PManager`.
-                                            // We passed `app_state` to this function.
-                                            
                                             app_state.logger.info("p2p", &format!("Received TopicUpdate from {}: {}", set_by_peer_id, topic));
-                                            app_state.topic_manager.set_topic(topic, Some(interval));
+                                            
+                                            // Validate and set topic
+                                            // We use set_topic which includes validation
+                                            // If validation fails (e.g. spam), we ignore it
+                                            if let Err(e) = app_state.topic_manager.set_topic(topic, Some(interval)) {
+                                                app_state.logger.warn("p2p", &format!("Ignored invalid topic update: {}", e));
+                                            }
                                         },
                                         _ => {}
                                     }

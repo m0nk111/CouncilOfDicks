@@ -23,6 +23,7 @@ struct TopicInternalState {
     interval_secs: u64,
     is_running: bool,
     last_run: SystemTime,
+    last_topic_change: SystemTime,
 }
 
 impl TopicManager {
@@ -34,11 +35,43 @@ impl TopicManager {
                 interval_secs: 300, // 5 minutes default
                 is_running: false,
                 last_run: SystemTime::now(),
+                last_topic_change: SystemTime::UNIX_EPOCH,
             })),
         }
     }
 
-    pub fn set_topic(&self, topic: String, interval_secs: Option<u64>) {
+    pub fn validate_topic_change(&self, new_topic: &str) -> Result<(), String> {
+        let state = self.state.lock().unwrap();
+        
+        // Rule 1: Content validation
+        if new_topic.trim().is_empty() {
+            return Err("Topic cannot be empty".to_string());
+        }
+        if new_topic.len() > 100 {
+            return Err("Topic is too long (max 100 chars)".to_string());
+        }
+
+        // Rule 2: Minimum duration (Anti-spam)
+        // Only enforce if there IS a current topic running
+        if state.is_running && state.current_topic.is_some() {
+            let min_duration = Duration::from_secs(300); // 5 minutes lock
+            let elapsed = SystemTime::now()
+                .duration_since(state.last_topic_change)
+                .unwrap_or(Duration::ZERO);
+            
+            if elapsed < min_duration {
+                let remaining = min_duration.as_secs() - elapsed.as_secs();
+                return Err(format!("Topic is locked for another {} seconds", remaining));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn set_topic(&self, topic: String, interval_secs: Option<u64>) -> Result<(), String> {
+        // Validate first
+        self.validate_topic_change(&topic)?;
+
         let mut state = self.state.lock().unwrap();
         state.current_topic = Some(topic);
         if let Some(secs) = interval_secs {
@@ -48,6 +81,22 @@ impl TopicManager {
         state.queue.clear(); // Reset queue on new topic
         // Reset timer so it starts soon
         state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs); 
+        state.last_topic_change = SystemTime::now();
+        
+        Ok(())
+    }
+
+    pub fn force_set_topic(&self, topic: String, interval_secs: Option<u64>) {
+        // Bypass validation (used for initial config or admin override)
+        let mut state = self.state.lock().unwrap();
+        state.current_topic = Some(topic);
+        if let Some(secs) = interval_secs {
+            state.interval_secs = secs;
+        }
+        state.is_running = true;
+        state.queue.clear();
+        state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs);
+        state.last_topic_change = SystemTime::now();
     }
 
     pub async fn broadcast_topic(&self, app_state: Arc<AppState>, topic: String, interval: u64) {
@@ -212,7 +261,9 @@ pub fn start_topic_loop(app_state: Arc<AppState>) {
 #[tauri::command]
 pub async fn topic_set(topic: String, interval: Option<u64>, state: tauri::State<'_, AppState>) -> Result<TopicStatus, String> {
     let interval_val = interval.unwrap_or(300);
-    state.topic_manager.set_topic(topic.clone(), Some(interval_val));
+    
+    // Try to set topic (will fail if validation fails)
+    state.topic_manager.set_topic(topic.clone(), Some(interval_val))?;
     
     // Broadcast to network
     state.topic_manager.broadcast_topic(Arc::new(state.inner().clone()), topic, interval_val).await;

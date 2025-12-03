@@ -151,7 +151,7 @@ impl AppState {
 
         // Initialize topic if configured
         if let Some(topic) = &base_config.initial_topic {
-            topic_manager.set_topic(topic.clone(), Some(base_config.topic_interval));
+            topic_manager.force_set_topic(topic.clone(), Some(base_config.topic_interval));
         }
 
         let state = Self {
