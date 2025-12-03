@@ -177,6 +177,15 @@ impl AppState {
         // Start background tasks
         crate::topic_manager::start_topic_loop(Arc::new(state.clone()));
 
+        // Start P2P event loop
+        let p2p_state = Arc::new(state.clone());
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                p2p_state.p2p_manager.process_events(p2p_state.clone()).await;
+            }
+        });
+
         state
     }
 

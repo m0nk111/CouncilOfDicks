@@ -50,6 +50,20 @@ impl TopicManager {
         state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs); 
     }
 
+    pub async fn broadcast_topic(&self, app_state: Arc<AppState>, topic: String, interval: u64) {
+        // Create message
+        let peer_id = app_state.p2p_manager.status().await.peer_id.unwrap_or_default();
+        let msg = crate::protocol::CouncilMessage::TopicUpdate {
+            topic,
+            interval,
+            set_by_peer_id: peer_id,
+            timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+        };
+
+        // Broadcast
+        let _ = app_state.p2p_manager.publish("council", msg).await;
+    }
+
     pub fn stop(&self) {
         let mut state = self.state.lock().unwrap();
         state.is_running = false;
@@ -196,9 +210,14 @@ pub fn start_topic_loop(app_state: Arc<AppState>) {
 
 // Tauri Commands
 #[tauri::command]
-pub fn topic_set(topic: String, interval: Option<u64>, state: tauri::State<AppState>) -> TopicStatus {
-    state.topic_manager.set_topic(topic, interval);
-    state.topic_manager.get_status()
+pub async fn topic_set(topic: String, interval: Option<u64>, state: tauri::State<'_, AppState>) -> Result<TopicStatus, String> {
+    let interval_val = interval.unwrap_or(300);
+    state.topic_manager.set_topic(topic.clone(), Some(interval_val));
+    
+    // Broadcast to network
+    state.topic_manager.broadcast_topic(Arc::new(state.inner().clone()), topic, interval_val).await;
+    
+    Ok(state.topic_manager.get_status())
 }
 
 #[tauri::command]

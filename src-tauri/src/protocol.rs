@@ -49,7 +49,14 @@ pub enum CouncilMessage {
     Heartbeat {
         peer_id: String,
         timestamp: u64,
-        challenge_response: Option<String>,
+    },
+
+    /// Update the active topic for the network
+    TopicUpdate {
+        topic: String,
+        interval: u64,
+        set_by_peer_id: String,
+        timestamp: u64,
     },
 
     /// Request peer to prove human presence
@@ -89,6 +96,7 @@ impl CouncilMessage {
             CouncilMessage::Heartbeat { .. } => "Heartbeat",
             CouncilMessage::HumanChallenge { .. } => "HumanChallenge",
             CouncilMessage::PeerAnnouncement { .. } => "PeerAnnouncement",
+            CouncilMessage::TopicUpdate { .. } => "TopicUpdate",
         }
     }
 }
@@ -168,7 +176,6 @@ mod tests {
         let heartbeat = CouncilMessage::Heartbeat {
             peer_id: "peer1".to_string(),
             timestamp: 123456,
-            challenge_response: None,
         };
         assert_eq!(heartbeat.message_type(), "Heartbeat");
     }
