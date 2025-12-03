@@ -51,7 +51,7 @@
 - Coordinators federate with each other
 - Like Mastodon/Matrix model
 
-### Option 3: Hybrid Local-First
+### Option 3: Hybrid Local-First (Current Strategy -> Transition to Option 1)
 ```
 ┌─────────────────────────────┐
 │     Local Client            │
@@ -64,11 +64,9 @@
 │  └────────────────────────┘ │
 └─────────────────────────────┘
 ```
-- Local-first: Everything works offline
-- Optionally connect to P2P network for:
-  - Access to more models
-  - Contribute your unused GPU cycles
-  - Faster queries via distributed compute
+- **Phase 1 (Now)**: Local-first. Everything works offline.
+- **Phase 2 (Next)**: Hybrid. Connect to P2P to offload tasks or query the distributed knowledge bank.
+- **Phase 3 (Goal)**: Pure Mesh. The distinction between "local" and "network" blurs. Your local node is just the closest peer in the swarm.
 
 ## Technology Stack Options
 

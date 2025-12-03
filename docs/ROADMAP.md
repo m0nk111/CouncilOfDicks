@@ -44,4 +44,26 @@ This roadmap reflects the latest reality after landing the council verdict archi
 - Federation of knowledge banks with zero-knowledge audit trail
 - Public council explorer with verifiable verdict signatures
 
+## 🌌 The Decade of Decentralization (2025-2035)
+
+### Phase 1: The Foundation (2025-2026)
+*   **Goal**: Establish a robust, tamper-proof local consensus engine.
+*   **Key Tech**: Rust, Tauri, Local LLMs (Ollama), SQLite.
+*   **Milestone**: A standalone app that users trust more than cloud AI because it runs on their metal and answers to them.
+
+### Phase 2: The Mesh (2026-2028)
+*   **Goal**: Connect isolated nodes into a resilient knowledge graph.
+*   **Key Tech**: libp2p, IPFS, CRDTs (Conflict-free Replicated Data Types).
+*   **Milestone**: "The Council" becomes a distributed entity. My node can ask your node for a specialist opinion (e.g., "The Medical Specialist") without me needing to download a 70B model.
+
+### Phase 3: The Symbiosis (2028-2030)
+*   **Goal**: Deep integration of Proof of Human Value (PoHV) into the protocol layer.
+*   **Key Tech**: Zero-Knowledge Proofs (ZK-PoHV), Biometric/Behavioral signatures.
+*   **Milestone**: The network *cannot* operate without human participation. It becomes a symbiotic organism where AI provides compute/reasoning and humans provide intent/ethics.
+
+### Phase 4: The Eternal Council (2030-2035)
+*   **Goal**: A planetary-scale, immutable history of reasoned consensus.
+*   **Key Tech**: Custom Layer-1 Blockchain (or L2 on existing), Quantum-resistant signatures.
+*   **Milestone**: A "Library of Alexandria" for decision making. Future generations can query *why* a decision was made in 2025, seeing the full debate, the dissenting opinions, and the consensus logic, cryptographically verified.
+
 > Roadmap items are ordered by dependency: council UI + PoHV work unblock reputation, which then feeds distributed knowledge sharing.

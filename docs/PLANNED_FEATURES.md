@@ -22,6 +22,9 @@ Instead of the user manually configuring every aspect of an agent (name, handle,
 *   **Personality Alignment**: The LLM can choose a name that fits its internal "vibe" or the specific model's strengths.
 *   **Dynamic Roles**: Agents can adapt their roles based on the current composition of the council (e.g., "I see there are too many Skeptics, I will be a Mediator").
 
+### Vision Alignment
+This feature supports the **Symbiotic Agents** goal (see `CORE_VISION.md`). By allowing agents to define their own identity within human-set boundaries, we move from "configuring tools" to "onboarding colleagues."
+
 ## 🐦 Twitter-Style Mentions & Interaction
 
 **Status:** Implemented (Basic), Enhancements Planned

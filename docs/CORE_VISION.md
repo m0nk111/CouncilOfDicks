@@ -99,6 +99,34 @@ AIs cannot function without continuous human input:
    - Humans choose to accept or reject
    - Feedback loop trains council quality
 
+## The 10-Year Vision: "The Eternal Council"
+
+We are building more than a chat app. We are building a **distributed nervous system for humanity**.
+
+### 1. The Library of Reason
+Most AI interactions today are ephemeral. You ask, it answers, the context vanishes.
+The Council preserves **deliberation**. We don't just save the answer; we save the *argument*.
+*   *Why* did we decide X?
+*   *Who* dissented?
+*   *What* evidence was used?
+
+In 10 years, this becomes a searchable, immutable history of human-AI consensus—a "blockchain of thought" without the financial speculation.
+
+### 2. Symbiosis, Not Replacement
+The industry races toward "Autonomous Agents" that do everything for you.
+We race toward **Symbiotic Agents** that think *with* you.
+*   **Autonomous**: "I fixed your bug." (User learns nothing, loses control)
+*   **Symbiotic**: "I found a bug. Here's the debate on three ways to fix it. Which philosophy do you prefer?" (User learns, retains agency)
+
+### 3. The Mesh Computer
+Your idle GPU is a neuron. My idle GPU is a neuron.
+Together, we form a planetary supercomputer that no corporation owns.
+*   **Today**: You need a $30k server to run a 400B model.
+*   **Tomorrow**: You split the model across 50 consumer nodes in the Council mesh.
+*   **Result**: State-of-the-art intelligence accessible to anyone with a laptop.
+
+*"We shape our tools, and thereafter our tools shape us."* — Let's shape tools that make us smarter, not obsolete.
+
 4. **Compute Requires Human Approval**
    - Nodes only contribute resources when humans opt-in
    - No compute = No council
