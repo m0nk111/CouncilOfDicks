@@ -307,6 +307,21 @@ When implementing new features, **always update documentation**:
 7. Commit with message: "feat: feature name + docs: documentation updates"
 ```
 
+## Commit & Changelog Standards
+
+To ensure traceability and ease of understanding for both humans and agents:
+
+### Git Commits
+- **One Feature, One Commit Group**: Group commits by the specific issue or feature they address.
+- **Granular & Descriptive**: Prefer smaller, focused commits. Each message must explain *what* changed and *why*.
+- **File Context**: Include the filename or component being modified in the commit message (e.g., `feat(chat): add twitter-style mentions`).
+- **Traceability**: Ensure the commit history tells a clear story of how a feature was implemented.
+
+### Changelog Maintenance
+- **Update Per Feature**: Update `CHANGELOG.md` *immediately* after completing a feature or significant fix, within the same PR or commit group.
+- **Link to Issues**: Reference the GitHub issue number in the changelog entry (e.g., "Added feature X (#123)").
+- **Technical Detail**: Include brief technical details (e.g., "Modified `state.rs` to fix path resolution") to aid future debugging.
+
 ## What to Avoid
 
 - ❌ Centralized dependencies
