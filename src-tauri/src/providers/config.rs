@@ -117,11 +117,13 @@ impl ProvidersConfig {
     }
 
     /// List all provider IDs
+    #[allow(dead_code)]
     pub fn list_ids(&self) -> Vec<String> {
         self.providers.iter().map(|p| p.id.clone()).collect()
     }
 
     /// Get providers by type
+    #[allow(dead_code)]
     pub fn providers_by_type(&self, provider_type: &ProviderTypeConfig) -> Vec<&ProviderConfig> {
         self.providers
             .iter()

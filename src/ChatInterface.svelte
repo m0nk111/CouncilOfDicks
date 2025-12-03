@@ -8,11 +8,16 @@
     chatCheckSpam,
     chatRecordMessage,
     councilListSessions,
+    councilGenerateQuestion,
     agentList,
+    chatGetStatus,
+    topicGetStatus,
     type ChatMessage,
     type ChannelType,
     type Agent,
+    type ChatBotStatus,
   } from "./api";
+  import TypewriterText from "./TypewriterText.svelte";
 
   const dispatch = createEventDispatcher();
 
@@ -21,7 +26,12 @@
   let messageInput = "";
   let username = "human_user"; // TODO: Get from auth/config
   let loading = false;
+  let generating = false;
   let error = "";
+  let chatStatus: ChatBotStatus | null = null;
+  let currentTopic: string | null = null;
+  let nextTopicAgent: string | null = null;
+  let nextRunInSecs: number | null = null;
   
   // Council state for participants sidebar
   type ParticipantSummary = {
@@ -58,16 +68,32 @@
 
   const channels: { name: string; type: ChannelType; icon: string; description: string }[] = [
     { name: "General", type: "general", icon: "💬", description: "General discussion" },
+    { name: "Topic", type: "topic", icon: "📢", description: "Topic discussion" },
     { name: "Human", type: "human", icon: "👤", description: "Human-only channel" },
     { name: "Knowledge", type: "knowledge", icon: "📚", description: "Search past decisions" },
     { name: "Vote", type: "vote", icon: "🗳️", description: "Council deliberation" },
   ];
+
+  function getAgentDisplayName(agentId: string | null): string {
+    if (!agentId) return "";
+    const participant = participants.find(p => p.id === agentId);
+    if (participant) {
+      return `${participant.name} (${participant.model || 'unknown'})`;
+    }
+    return agentId.substring(0, 8); // Fallback to short ID
+  }
 
   async function loadMessages() {
     try {
       loading = true;
       error = "";
       messages = await chatGetMessages(selectedChannel, 50, 0);
+      
+      // Also update topic status
+      const topicStatus = await topicGetStatus();
+      currentTopic = topicStatus.current_topic || null;
+      nextTopicAgent = topicStatus.next_agent || null;
+      nextRunInSecs = topicStatus.next_run_in_secs;
     } catch (e) {
       error = `Failed to load messages: ${e}`;
       console.error(error);
@@ -108,11 +134,13 @@
       }
 
       // Send message
-      messageInput = "";
-      await chatSendMessage(selectedChannel, username, "human", content);
+      const msgToSend = content;
+      messageInput = ""; // Clear immediately
+      
+      await chatSendMessage(selectedChannel, username, "human", msgToSend);
       
       // Record for spam/rate limit tracking
-      await chatRecordMessage(username, content);
+      await chatRecordMessage(username, msgToSend);
       if (selectedChannel === 'vote') {
         await chatRecordQuestion(username);
       }
@@ -121,6 +149,7 @@
     } catch (e) {
       error = `Failed to send message: ${e}`;
       console.error(error);
+      // Restore message if failed? No, better to show error and let user retry if needed (maybe add retry logic later)
     }
   }
 
@@ -281,31 +310,74 @@
           updateParticipantState([], null);
         }
 
-        if (participants.length === 0) {
+        if (participants.length <= 1) { // Check <= 1 because "self" is always added
           await loadAgentRoster();
         }
       } else {
         activeSession = null;
-        updateParticipantState([], null);
+        // Don't clear state here, just load roster
         await loadAgentRoster();
       }
     } catch (e) {
       console.error("Failed to load active session:", e);
-      if (!participants.length) {
+      if (participants.length <= 1) {
         await loadAgentRoster();
       }
     }
   }
 
+  async function generateQuestion() {
+    try {
+      generating = true;
+      const question = await councilGenerateQuestion();
+      messageInput = question;
+    } catch (e) {
+      error = `Failed to generate question: ${e}`;
+      console.error(error);
+    } finally {
+      generating = false;
+    }
+  }
+
+  function formatDuration(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
   onMount(() => {
+    console.log("ChatInterface mounted");
     loadMessages();
+    loadAgentRoster(); // Load roster immediately
     loadActiveSession();
+    
     // Auto-reload every 5 seconds
     const interval = setInterval(() => {
       loadMessages();
       loadActiveSession();
     }, 5000);
-    return () => clearInterval(interval);
+
+    // Poll chat status every 1 second
+    const statusInterval = setInterval(async () => {
+      try {
+        chatStatus = await chatGetStatus();
+      } catch (e) {
+        // console.error("Failed to get chat status", e);
+      }
+    }, 1000);
+
+    // Local countdown timer
+    const countdownInterval = setInterval(() => {
+      if (nextRunInSecs !== null && nextRunInSecs > 0) {
+        nextRunInSecs--;
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(statusInterval);
+      clearInterval(countdownInterval);
+    };
   });
 </script>
 
@@ -346,9 +418,23 @@
           {channels.find((c) => c.type === selectedChannel)?.icon}
           #{channels.find((c) => c.type === selectedChannel)?.name}
         </h3>
-        <p class="channel-description">
-          {channels.find((c) => c.type === selectedChannel)?.description}
-        </p>
+        <div class="channel-meta">
+          <p class="channel-description">
+            {channels.find((c) => c.type === selectedChannel)?.description}
+          </p>
+          {#if currentTopic && selectedChannel === 'topic'}
+            <div class="current-topic">
+              <span class="topic-label">Current Topic:</span>
+              <span class="topic-text">{currentTopic}</span>
+              {#if nextTopicAgent}
+                <span class="topic-next">Next: {getAgentDisplayName(nextTopicAgent)}</span>
+                {#if nextRunInSecs !== null}
+                  <span class="topic-timer">⏱️ {formatDuration(nextRunInSecs)}</span>
+                {/if}
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
       <div class="header-actions">
         <button class="icon-btn" on:click={openTopic} title="Topic Channel">
@@ -382,10 +468,24 @@
           </div>
           <div class="message-content">
             <div class="message-header">
-              <span class="message-author">{message.author}</span>
+              <div class="message-author-group">
+                <span class="message-author">{message.author}</span>
+                {#if message.author_type === 'ai'}
+                  <!-- Find agent model if possible, or just show AI -->
+                  {#if participants.find(p => p.name === message.author)?.model}
+                    <div class="message-model">{participants.find(p => p.name === message.author)?.model}</div>
+                  {/if}
+                {/if}
+              </div>
               <span class="message-time">{formatTime(message.timestamp)}</span>
             </div>
-            <div class="message-text">{message.content}</div>
+            <div class="message-text">
+              {#if message.author_type === 'ai' || message.author_type === 'system'}
+                <TypewriterText text={message.content} timestamp={message.timestamp} />
+              {:else}
+                {message.content}
+              {/if}
+            </div>
             {#if message.reactions.length > 0}
               <div class="message-reactions">
                 {#each message.reactions as reaction}
@@ -400,8 +500,43 @@
       {/each}
     </div>
 
+    <!-- Agent Status -->
+    {#if chatStatus}
+      <div class="agent-status">
+        {#if chatStatus.current_thinking}
+          <div class="thinking">
+            <span class="spinner">⚙️</span>
+            <strong>{chatStatus.current_thinking}</strong> is thinking...
+            {#if chatStatus.current_reasoning}
+              <span class="reasoning">({chatStatus.current_reasoning})</span>
+            {/if}
+          </div>
+        {:else if chatStatus.queue.length === 0}
+          <div class="idle">
+            <span class="status-dot idle-dot"></span>
+            System Idle
+          </div>
+        {/if}
+        {#if chatStatus.queue.length > 0}
+          <div class="queue">
+            <span class="label">Queue:</span>
+            {#each chatStatus.queue as agent}
+              <span class="queued-agent">{agent}</span>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Input -->
     <div class="input-container">
+      <button class="gen-btn" on:click={generateQuestion} title="Generate random question" disabled={generating}>
+        {#if generating}
+          ⏳
+        {:else}
+          🎲
+        {/if}
+      </button>
       <textarea
         bind:value={messageInput}
         on:keypress={handleKeyPress}
@@ -444,8 +579,21 @@
               <div class="member-name">{participant.name}</div>
               <div class="member-status">
                 {participant.kind === "human" ? "Human" : "AI Agent"}
-                {participant.model ? ` • ${participant.model}` : ""}
+                {#if participant.model}
+                  <span class="member-model-inline">• {participant.model}</span>
+                {/if}
               </div>
+              {#if chatStatus}
+                {#if chatStatus.current_thinking === participant.name}
+                  <div class="member-activity activity-thinking">
+                    <span>⚙️ Thinking...</span>
+                  </div>
+                {:else if chatStatus.queue.includes(participant.name)}
+                  <div class="member-activity activity-queued">
+                    <span>⏳ Queued (#{chatStatus.queue.indexOf(participant.name) + 1})</span>
+                  </div>
+                {/if}
+              {/if}
             </div>
 
             <div
@@ -672,6 +820,55 @@
     color: #999;
   }
 
+  .channel-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .current-topic {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    background: rgba(0, 212, 255, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+
+  .topic-label {
+    color: #00d4ff;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+  }
+
+  .topic-text {
+    color: #fff;
+    font-style: italic;
+  }
+
+  .topic-next {
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+
+  .topic-timer {
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-weight: bold;
+  }
+
   .messages {
     flex: 1;
     overflow-y: auto;
@@ -829,6 +1026,32 @@
     cursor: not-allowed;
   }
 
+  /* Generate Button */
+  .gen-btn {
+    padding: 0 1rem;
+    background: #2a2a40;
+    border: 1px solid #3a3a50;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gen-btn:hover:not(:disabled) {
+    background: #3a3a50;
+    border-color: #00d4ff;
+    transform: translateY(-1px);
+  }
+
+  .gen-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Right Sidebar - Members/Participants */
   .members-sidebar {
     width: 240px;
@@ -919,6 +1142,54 @@
   .member-status {
     font-size: 0.75rem;
     color: #4ade80;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .member-model-inline {
+    color: #8ac7ff;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .message-author-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .message-model {
+    font-size: 0.7rem;
+    color: #8ac7ff;
+    margin-top: -2px;
+    margin-bottom: 2px;
+  }
+
+  .member-activity {
+    font-size: 0.7rem;
+    margin-top: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .activity-thinking {
+    color: #00d4ff;
+    font-weight: 600;
+    animation: pulse 1.5s infinite;
+  }
+
+  .activity-queued {
+    color: #ffaa00;
+    font-style: italic;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
   }
 
   .member-hover-card {
@@ -1034,5 +1305,62 @@
   .empty-members .hint {
     font-size: 0.85rem;
     font-style: italic;
+  }
+
+  .agent-status {
+    padding: 1rem 1.5rem;
+    background: #0f3460;
+    border-radius: 8px;
+    margin: 0 1.5rem 1rem 1.5rem;
+    color: #eee;
+    font-size: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .thinking {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+  }
+
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .queue {
+    margin-top: 0.5rem;
+  }
+
+  .label {
+    font-weight: 600;
+    color: #00d4ff;
+  }
+
+  .queued-agent {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .idle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #7d90b2;
+    font-size: 0.9rem;
+  }
+
+  .idle-dot {
+    background: #7d90b2;
+    box-shadow: none;
   }
 </style>

@@ -26,6 +26,7 @@
   }
 
   onMount(() => {
+    console.log("PoHVIndicator mounted");
     updateStatus();
     interval = setInterval(updateStatus, 1000);
   });
@@ -76,7 +77,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    z-index: 1000;
+    z-index: 9999;
     transition: all 0.3s;
     backdrop-filter: blur(10px);
   }

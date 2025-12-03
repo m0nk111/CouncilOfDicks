@@ -13,6 +13,8 @@ pub enum ChannelType {
     Human,
     /// Search knowledge bank, view past decisions
     Knowledge,
+    /// Dedicated channel for topic-based discussions
+    Topic,
     /// Submit questions, watch deliberation, see verdicts
     Vote,
 }
@@ -23,6 +25,7 @@ impl ChannelType {
             ChannelType::General => "general",
             ChannelType::Human => "human",
             ChannelType::Knowledge => "knowledge",
+            ChannelType::Topic => "topic",
             ChannelType::Vote => "vote",
         }
     }
@@ -32,6 +35,7 @@ impl ChannelType {
             "general" => Some(ChannelType::General),
             "human" => Some(ChannelType::Human),
             "knowledge" => Some(ChannelType::Knowledge),
+            "topic" => Some(ChannelType::Topic),
             "vote" => Some(ChannelType::Vote),
             _ => None,
         }
@@ -43,6 +47,7 @@ impl ChannelType {
             ChannelType::General => true,
             ChannelType::Human => false, // Human-only channel
             ChannelType::Knowledge => true,
+            ChannelType::Topic => true,
             ChannelType::Vote => true,
         }
     }
@@ -235,6 +240,7 @@ impl ChannelManager {
         channels.insert(ChannelType::General, Channel::new(ChannelType::General));
         channels.insert(ChannelType::Human, Channel::new(ChannelType::Human));
         channels.insert(ChannelType::Knowledge, Channel::new(ChannelType::Knowledge));
+        channels.insert(ChannelType::Topic, Channel::new(ChannelType::Topic));
         channels.insert(ChannelType::Vote, Channel::new(ChannelType::Vote));
 
         Self {

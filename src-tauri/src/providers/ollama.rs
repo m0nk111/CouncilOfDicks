@@ -22,12 +22,14 @@ struct OllamaResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OllamaEmbeddingRequest {
     model: String,
     prompt: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OllamaEmbeddingResponse {
     embedding: Vec<f32>,
 }
@@ -35,7 +37,9 @@ struct OllamaEmbeddingResponse {
 /// Ollama AI provider implementation
 pub struct OllamaProvider {
     base_url: String,
+    #[allow(dead_code)]
     default_model: String,
+    #[allow(dead_code)]
     embedding_model: String,
     timeout: Duration,
     logger: Arc<Logger>,
@@ -58,6 +62,7 @@ impl OllamaProvider {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_embedding_model(mut self, model: String) -> Self {
         self.embedding_model = model;
         self
@@ -108,6 +113,7 @@ impl AIProvider for OllamaProvider {
 
         let response = client
             .post(&endpoint)
+            .basic_auth("CouncilOfDicks", Some(""))
             .json(&ollama_request)
             .send()
             .await

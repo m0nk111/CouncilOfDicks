@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Registry for managing multiple AI providers
+#[allow(dead_code)]
 pub struct ProviderRegistry {
     providers: HashMap<String, Arc<dyn AIProvider>>,
     default_generation_provider: Option<String>,
@@ -13,6 +14,7 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     /// Create new empty registry
+    #[allow(dead_code)]
     pub fn new(logger: Arc<Logger>) -> Self {
         logger.log(
             LogLevel::Info,
@@ -29,6 +31,7 @@ impl ProviderRegistry {
     }
 
     /// Register a provider with given ID
+    #[allow(dead_code)]
     pub fn register(&mut self, id: String, provider: Arc<dyn AIProvider>) {
         self.logger.log(
             LogLevel::Info,
@@ -40,11 +43,13 @@ impl ProviderRegistry {
     }
 
     /// Get provider by ID
+    #[allow(dead_code)]
     pub fn get(&self, id: &str) -> Option<Arc<dyn AIProvider>> {
         self.providers.get(id).cloned()
     }
 
     /// Set default generation provider
+    #[allow(dead_code)]
     pub fn set_default_generation(&mut self, id: String) -> Result<(), String> {
         if !self.providers.contains_key(&id) {
             return Err(format!("Provider '{}' not found", id));
@@ -61,6 +66,7 @@ impl ProviderRegistry {
     }
 
     /// Set default embedding provider
+    #[allow(dead_code)]
     pub fn set_default_embedding(&mut self, id: String) -> Result<(), String> {
         if !self.providers.contains_key(&id) {
             return Err(format!("Provider '{}' not found", id));
@@ -82,6 +88,7 @@ impl ProviderRegistry {
     }
 
     /// Get default generation provider
+    #[allow(dead_code)]
     pub fn get_generation_provider(&self) -> Result<Arc<dyn AIProvider>, ProviderError> {
         let id = self
             .default_generation_provider
@@ -97,6 +104,7 @@ impl ProviderRegistry {
     }
 
     /// Get default embedding provider
+    #[allow(dead_code)]
     pub fn get_embedding_provider(&self) -> Result<Arc<dyn AIProvider>, ProviderError> {
         let id = self
             .default_embedding_provider
@@ -112,21 +120,25 @@ impl ProviderRegistry {
     }
 
     /// List all registered provider IDs
+    #[allow(dead_code)]
     pub fn list_providers(&self) -> Vec<String> {
         self.providers.keys().cloned().collect()
     }
 
     /// Get provider count
+    #[allow(dead_code)]
     pub fn count(&self) -> usize {
         self.providers.len()
     }
 
     /// Check if provider exists
+    #[allow(dead_code)]
     pub fn has_provider(&self, id: &str) -> bool {
         self.providers.contains_key(id)
     }
 
     /// Remove provider
+    #[allow(dead_code)]
     pub fn remove(&mut self, id: &str) -> bool {
         if self.providers.remove(id).is_some() {
             self.logger.log(

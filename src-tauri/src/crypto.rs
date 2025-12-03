@@ -149,6 +149,7 @@ pub fn public_key_fingerprint(public_key_base64: &str) -> Result<String, String>
 }
 
 /// Internal helper for HTTP API - verify signature with raw strings
+#[allow(dead_code)]
 pub fn verify_signature_internal(message: &str, signature: &str, public_key: &str) -> bool {
     // Decode signature and public key
     let sig_bytes = match general_purpose::STANDARD.decode(signature) {

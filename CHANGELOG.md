@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-12-03)
+- **Agent Configuration**: Moved agent definitions from hardcoded Rust to `config/agents.json`.
+  - Allows modifying agent names, models, and prompts without recompiling.
+  - Automatically loads agents at startup.
+- **New Models**: Updated default agent roster to use state-of-the-art models:
+  - Skeptical Analyst: `qwen3-coder-30b-q4km:latest`
+  - Deep Reasoner: `deepseek-r1:32b`
+  - Technical Architect: `gpt-oss:20b`
+  - Ethical Guardian: `gemma2:27b`
+  - Creative Visionary: `gemma2:9b`
+  - Pragmatic Sentinel: `mistral:7b`
+- **Knowledge Bank UI**: Added "Knowledge" tab to Council Panel.
+  - Semantic search interface for past deliberations.
+  - Result cards with similarity scores and session details.
+- **Reputation UI**: Added visual reputation stats (Accuracy, Reasoning, Tiers) to Agent cards.
+- **PoHV Integration**: Fully integrated `PoHVIndicator` into the main app layout.
+
 ### Added (2025-12-02)
 - **Council Benchmark Suite**: Added a "Benchmarks" tab to the Council Panel with 7 diagnostic questions (Logic Traps, Hallucination Triggers, etc.) to test Council consensus against known LLM failure modes.
 - **Proof of Human Value (PoHV) v1**: Implemented a heartbeat mechanism that tracks human interaction.

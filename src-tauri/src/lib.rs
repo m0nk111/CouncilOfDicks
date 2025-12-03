@@ -1008,6 +1008,17 @@ async fn provider_generate_username(
     providers::config::generate_username_from_model(&model_name, &provider_name).await
 }
 
+#[tauri::command]
+async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    let config = state.get_config();
+    let model = config.ollama_model.clone();
+    let url = config.ollama_url.clone();
+
+    let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
+
+    ollama::ask_ollama(&url, &model, prompt).await.map(|q| q.trim().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize app state
@@ -1019,6 +1030,7 @@ pub fn run() {
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             ask_ollama,
+            generate_question,
             get_config,
             set_debug,
             get_metrics,
@@ -1076,7 +1088,8 @@ pub fn run() {
             agent_get,
             agent_list_active,
             agent_get_tools,
-            get_benchmarks
+            get_benchmarks,
+            generate_question
         ])
         .setup(move |app| {
             if cfg!(debug_assertions) {

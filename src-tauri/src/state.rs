@@ -1,7 +1,8 @@
-use crate::agents::AgentPool;
+use crate::agents::{Agent, AgentPool};
 use crate::chat::{
     ChannelManager, DuplicateFilter, Message as ChatMessage, RateLimiter, SpamDetector,
 };
+use crate::chat_bot::ChatBotStatus;
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -37,6 +38,7 @@ pub struct AppState {
     pub pohv_system: Arc<PoHVSystem>,
     pub topic_manager: Arc<TopicManager>,
     pub reputation_manager: Arc<ReputationManager>,
+    pub chat_bot_status: Arc<Mutex<ChatBotStatus>>,
 }
 
 impl AppState {
@@ -80,6 +82,8 @@ impl AppState {
             council_manager.clone(),
             logger.clone(),
         ));
+
+        let chat_bot_status = Arc::new(Mutex::new(ChatBotStatus::default()));
 
         // Load or generate signing identity
         let keypair_path = PathBuf::from("./council_identity.key");
@@ -130,6 +134,49 @@ impl AppState {
         let spam_detector = Arc::new(SpamDetector::new());
         let (ws_tx, _ws_rx) = broadcast::channel::<ChatMessage>(100);
         let agent_pool = Arc::new(AgentPool::new());
+
+        // Load agents from config/agents.json
+        let agents_config_path = std::path::Path::new("config/agents.json");
+        if agents_config_path.exists() {
+            logger.info("agent", "Loading agents from config/agents.json");
+            if let Ok(content) = fs::read_to_string(agents_config_path) {
+                #[derive(serde::Deserialize)]
+                struct AgentConfig {
+                    name: String,
+                    model: String,
+                    system_prompt: String,
+                    metadata: Option<std::collections::HashMap<String, String>>,
+                }
+
+                match serde_json::from_str::<Vec<AgentConfig>>(&content) {
+                    Ok(configs) => {
+                        for config in configs {
+                            let mut agent = Agent::new(
+                                config.name.clone(),
+                                config.model.clone(),
+                                config.system_prompt,
+                            );
+                            if let Some(metadata) = config.metadata {
+                                agent.metadata = metadata;
+                            }
+                            
+                            if let Err(e) = agent_pool.add_agent(agent).await {
+                                logger.error("agent", &format!("Failed to add agent {}: {}", config.name, e));
+                            } else {
+                                logger.success("agent", &format!("Loaded agent: {} ({})", config.name, config.model));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        logger.error("agent", &format!("Failed to parse agents.json: {}", e));
+                    }
+                }
+            } else {
+                logger.error("agent", "Failed to read agents.json");
+            }
+        } else {
+            logger.warn("agent", "config/agents.json not found. No agents loaded.");
+        }
         let pohv_system = Arc::new(PoHVSystem::new());
         let topic_manager = Arc::new(TopicManager::new());
         let reputation_manager = Arc::new(ReputationManager::new(knowledge_bank.clone()));
@@ -160,6 +207,7 @@ impl AppState {
             pohv_system,
             topic_manager,
             reputation_manager,
+            chat_bot_status,
         };
         
         // Start background tasks

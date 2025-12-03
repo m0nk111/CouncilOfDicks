@@ -11,6 +11,7 @@ pub struct TopicStatus {
     pub queue_length: usize,
     pub next_run_in_secs: u64,
     pub is_running: bool,
+    pub next_agent: Option<String>,
 }
 
 pub struct TopicManager {
@@ -32,7 +33,7 @@ impl TopicManager {
             state: Arc::new(Mutex::new(TopicInternalState {
                 current_topic: None,
                 queue: VecDeque::new(),
-                interval_secs: 300, // 5 minutes default
+                interval_secs: 600, // 10 minutes default
                 is_running: false,
                 last_run: SystemTime::now(),
                 last_topic_change: SystemTime::UNIX_EPOCH,
@@ -52,8 +53,15 @@ impl TopicManager {
         }
 
         // Rule 2: Minimum duration (Anti-spam)
-        // Only enforce if there IS a current topic running
+        // Only enforce if there IS a current topic running AND it's not the same topic
         if state.is_running && state.current_topic.is_some() {
+            // Allow updating the interval if the topic name is the same
+            if let Some(current) = &state.current_topic {
+                if current == new_topic {
+                    return Ok(());
+                }
+            }
+
             let min_duration = Duration::from_secs(300); // 5 minutes lock
             let elapsed = SystemTime::now()
                 .duration_since(state.last_topic_change)
@@ -135,6 +143,7 @@ impl TopicManager {
             queue_length: state.queue.len(),
             next_run_in_secs: next_run,
             is_running: state.is_running,
+            next_agent: state.queue.front().cloned(),
         }
     }
 
@@ -203,16 +212,28 @@ impl TopicManager {
             if let Ok(agent) = app_state.agent_pool.get_agent(&agent_id).await {
                 // Build RAG context if available
                 let mut context_str = String::new();
+                
+                // 1. Get recent discussion context from the topic channel
+                if let Ok(messages) = app_state.channel_manager.get_messages(crate::chat::ChannelType::Topic, 10, 0) {
+                    if !messages.is_empty() {
+                        context_str.push_str("\n\nRECENT DISCUSSION:\n");
+                        for msg in messages.iter().rev() { // Reverse to chronological order
+                            context_str.push_str(&format!("{}: {}\n", msg.author, msg.content));
+                        }
+                    }
+                }
+
+                // 2. Get Knowledge Bank context if available
                 if let Some(kb) = &app_state.knowledge_bank {
                     if let Ok(rag) = kb.build_rag_context(&topic, 3).await {
                         if !rag.relevant_decisions.is_empty() {
-                            context_str = format!("\n\nRELEVANT PAST DECISIONS:\n{}", rag.context_text);
+                            context_str.push_str(&format!("\n\nRELEVANT PAST DECISIONS:\n{}", rag.context_text));
                         }
                     }
                 }
 
                 let prompt = format!(
-                    "TOPIC DISCUSSION\n\nTopic: {}\n{}\n\nPlease provide your perspective on this topic. Keep it concise and insightful. Start your response with your opinion. If relevant, reference the past decisions provided.",
+                    "TOPIC DISCUSSION\n\nTopic: {}\n{}\n\nPlease provide your perspective on this topic. Keep it concise and insightful. Start your response with your opinion. If relevant, reference the past decisions provided. Respond to previous points if applicable.",
                     topic, context_str
                 );
 
@@ -247,7 +268,7 @@ impl TopicManager {
                         let message_content = format!("#topic {}\n\n{}", topic, response.text);
                         
                         let message = crate::chat::Message::new(
-                            crate::chat::ChannelType::General,
+                            crate::chat::ChannelType::Topic,
                             agent.name.clone(),
                             crate::chat::AuthorType::AI,
                             message_content
@@ -277,7 +298,7 @@ pub fn start_topic_loop(app_state: Arc<AppState>) {
 // Tauri Commands
 #[tauri::command]
 pub async fn topic_set(topic: String, interval: Option<u64>, state: tauri::State<'_, AppState>) -> Result<TopicStatus, String> {
-    let interval_val = interval.unwrap_or(300);
+    let interval_val = interval.unwrap_or(600); // Default 10 minutes
     
     // Try to set topic (will fail if validation fails)
     state.topic_manager.set_topic(topic.clone(), Some(interval_val))?;

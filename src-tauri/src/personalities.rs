@@ -89,12 +89,14 @@ pub fn create_council_members(model_name: &str, count: usize) -> Vec<CouncilMemb
 }
 
 /// Create a balanced council (recommended default)
+#[allow(dead_code)]
 pub fn create_balanced_council(model_name: &str) -> Vec<CouncilMember> {
     // Use 5 core personalities for balanced debate
     create_council_members(model_name, 5)
 }
 
 /// Get personality by name
+#[allow(dead_code)]
 pub fn get_personality(name: &str) -> Option<Personality> {
     get_default_personalities()
         .into_iter()

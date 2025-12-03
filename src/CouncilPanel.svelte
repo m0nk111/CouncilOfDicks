@@ -9,19 +9,27 @@
     councilListSessions,
     verdictListRecent,
     getBenchmarks,
-    type Verdict,
+    reputationGet,
+    kbSearch,
+    type CouncilVerdictRecord,
     type Benchmark,
+    type AgentReputation,
+    type SearchResult,
   } from "./api";
 
   // State
   let agents: any[] = [];
+  let reputations: Record<string, AgentReputation> = {};
   let sessions: any[] = [];
-  let verdicts: Verdict[] = [];
+  let verdicts: CouncilVerdictRecord[] = [];
   let benchmarks: Benchmark[] = [];
-  let activeTab: "sessions" | "verdicts" | "benchmarks" = "sessions";
+  let searchResults: SearchResult[] = [];
+  let activeTab: "sessions" | "verdicts" | "benchmarks" | "knowledge" = "sessions";
   let selectedAgents: Set<string> = new Set();
   let question = "";
+  let searchQuery = "";
   let loading = false;
+  let isSearching = false;
   let error = "";
   let activeSessionId = "";
   
@@ -42,6 +50,15 @@
   async function loadAgents() {
     try {
       agents = await agentList();
+      // Load reputations
+      for (const agent of agents) {
+        try {
+          const rep = await reputationGet(agent.id);
+          reputations[agent.id] = rep;
+        } catch (e) {
+          // Ignore missing reputations (new agents)
+        }
+      }
     } catch (e: any) {
       error = `Backend not available - using mock data`;
       console.warn("Backend error, using mock data:", e);
@@ -89,8 +106,20 @@
       agents.forEach(a => selectedAgents.add(a.id));
       selectedAgents = selectedAgents;
     }
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    activeTab = "sessions";
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim()) return;
+    
+    isSearching = true;
+    try {
+      searchResults = await kbSearch(searchQuery);
+    } catch (e: any) {
+      error = `Search failed: ${e}`;
+    } finally {
+      isSearching = false;
+    }
   }
 
   function toggleAgent(agentId: string) {
@@ -327,9 +356,39 @@
             on:click={() => toggleAgent(agent.id)}
             disabled={loading}
           >
-            <div class="agent-icon">🤖</div>
+            <div class="agent-header">
+              <div class="agent-icon">🤖</div>
+              {#if reputations[agent.id]}
+                <div class="tier-badge {reputations[agent.id].tier.toLowerCase()}">
+                  {reputations[agent.id].tier}
+                </div>
+              {/if}
+            </div>
             <div class="agent-name">{agent.name}</div>
             <div class="agent-model">{agent.model_name || "qwen2.5-coder:7b"}</div>
+            
+            {#if reputations[agent.id]}
+              <div class="reputation-stats">
+                <div class="stat-row">
+                  <span class="stat-label">Acc:</span>
+                  <div class="stat-bar">
+                    <div class="stat-fill accuracy" style="width: {reputations[agent.id].score.accuracy * 100}%"></div>
+                  </div>
+                  <span class="stat-val">{(reputations[agent.id].score.accuracy * 100).toFixed(0)}%</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Reas:</span>
+                  <div class="stat-bar">
+                    <div class="stat-fill reasoning" style="width: {reputations[agent.id].score.reasoning * 100}%"></div>
+                  </div>
+                  <span class="stat-val">{(reputations[agent.id].score.reasoning * 100).toFixed(0)}%</span>
+                </div>
+                <div class="stat-mini">
+                  <span>🗳️ {reputations[agent.id].score.total_votes}</span>
+                  <span>✅ {reputations[agent.id].score.successful_consensus}</span>
+                </div>
+              </div>
+            {/if}
           </button>
         {/each}
       </div>
@@ -375,6 +434,13 @@
       >
         🧪 Benchmarks
       </button>
+      <button 
+        class="tab-btn" 
+        class:active={activeTab === "knowledge"} 
+        on:click={() => activeTab = "knowledge"}
+      >
+        🧠 Knowledge
+      </button>
     </div>
 
     {#if activeTab === "sessions"}
@@ -409,30 +475,25 @@
         {#if verdicts.length === 0}
           <p class="empty-state">No verdicts recorded yet.</p>
         {:else}
-          {#each verdicts as verdict (verdict.id)}
+          {#each verdicts as verdict (verdict.session_id)}
             <div class="verdict-card">
               <div class="verdict-header">
-                <span class="verdict-id">#{verdict.id.slice(0, 8)}</span>
-                <span class="verdict-time">{new Date(verdict.created_at).toLocaleString()}</span>
-                <span class="verdict-confidence">Confidence: {(verdict.confidence * 100).toFixed(0)}%</span>
+                <span class="verdict-id">#{verdict.session_id.slice(0, 8)}</span>
+                <span class="verdict-time">{new Date(verdict.created_at * 1000).toLocaleString()}</span>
+                <span class="verdict-confidence">{verdict.response_count} responses</span>
               </div>
               <div class="verdict-question">{verdict.question}</div>
               <div class="verdict-result">
                 <strong>Verdict:</strong> {verdict.verdict}
               </div>
-              <div class="verdict-reasoning">
-                {verdict.reasoning}
+              <div class="verdict-participants">
+                <small>Participants: {verdict.participants.join(", ")}</small>
               </div>
-              {#if verdict.dissent}
-                <div class="verdict-dissent">
-                  <strong>Dissent:</strong> {verdict.dissent}
-                </div>
-              {/if}
             </div>
           {/each}
         {/if}
       </div>
-    {:else}
+    {:else if activeTab === "benchmarks"}
       <div class="benchmarks-list">
         {#each benchmarks as benchmark (benchmark.id)}
           <div class="benchmark-card">
@@ -449,6 +510,46 @@
             </button>
           </div>
         {/each}
+      </div>
+    {:else if activeTab === "knowledge"}
+      <div class="knowledge-section">
+        <div class="search-bar">
+          <input 
+            type="text" 
+            bind:value={searchQuery} 
+            placeholder="Search the Council's knowledge bank..."
+            on:keydown={(e) => e.key === 'Enter' && handleSearch()}
+          />
+          <button on:click={handleSearch} disabled={isSearching}>
+            {isSearching ? "🔍 Searching..." : "🔍 Search"}
+          </button>
+        </div>
+
+        {#if searchResults.length > 0}
+          <div class="search-results">
+            {#each searchResults as result}
+              <button class="result-card" on:click={() => viewSession(result.session_id)}>
+                <div class="result-header">
+                  <span class="result-score">Match: {Math.round(result.similarity * 100)}%</span>
+                  <span class="result-id">#{result.session_id.slice(0, 8)}</span>
+                </div>
+                <div class="result-content">{result.content}</div>
+                <div class="result-meta">
+                  <span class="result-type">{result.entry_type}</span>
+                  <span class="result-date">{new Date(result.timestamp * 1000).toLocaleDateString()}</span>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {:else if searchQuery && !isSearching}
+          <div class="empty-state">
+            <p>No results found for "{searchQuery}"</p>
+          </div>
+        {:else if !searchQuery}
+          <div class="empty-state">
+            <p>Enter a query to search past deliberations and verdicts.</p>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -691,12 +792,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: 100%;
+    margin-bottom: 0.5rem;
   }
 
   .agent-name {
     font-weight: 600;
-    color: #00d4ff;
-    font-size: 1rem;
+    color: #fff;
+    margin-bottom: 0.25rem;
   }
 
   .btn-delete-agent {
@@ -801,30 +904,46 @@
   }
 
   .agent-card.selected {
-    background: #1a3a52;
     border-color: #00d4ff;
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
-  }
-
-  .agent-card:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    background: rgba(0, 212, 255, 0.1);
   }
 
   .agent-icon {
     font-size: 2rem;
-    margin-bottom: 0.5rem;
   }
 
-  .agent-name {
-    color: #e0e0e0;
-    font-weight: 500;
-    margin-bottom: 0.25rem;
+  .tier-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
   }
 
-  .agent-model {
-    color: #666;
-    font-size: 0.8rem;
+  .tier-badge.citadel {
+    background: #ffd700;
+    color: #000;
+    box-shadow: 0 0 5px #ffd700;
+  }
+
+  .tier-badge.prime {
+    background: #e0e0e0;
+    color: #000;
+  }
+
+  .tier-badge.standard {
+    background: #4caf50;
+    color: #fff;
+  }
+
+  .tier-badge.candidate {
+    background: #2196f3;
+    color: #fff;
+  }
+
+  .tier-badge.quarantine {
+    background: #f44336;
+    color: #fff;
   }
 
   .action-section {
@@ -1200,5 +1319,177 @@
     background: #444;
     border-color: #00d4ff;
     color: #00d4ff;
+  }
+
+  /* Reputation Stats */
+  .reputation-stats {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+  }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .stat-label {
+    color: #888;
+    width: 35px;
+  }
+
+  .stat-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .stat-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+
+  .stat-fill.accuracy {
+    background: #4caf50;
+  }
+
+  .stat-fill.reasoning {
+    background: #00d4ff;
+  }
+
+  .stat-val {
+    color: #e0e0e0;
+    width: 30px;
+    text-align: right;
+    font-family: monospace;
+  }
+
+  .stat-mini {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  /* Knowledge Bank Styles */
+  .knowledge-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .search-bar {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .search-bar input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: white;
+    font-size: 1rem;
+  }
+
+  .search-bar input:focus {
+    border-color: #00d4ff;
+    outline: none;
+  }
+
+  .search-bar button {
+    padding: 0 1.5rem;
+    background: #00d4ff;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .search-bar button:hover {
+    background: #00b8d4;
+  }
+
+  .search-bar button:disabled {
+    background: #444;
+    color: #888;
+    cursor: not-allowed;
+  }
+
+  .search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .result-card {
+    background: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+  }
+
+  .result-card:hover {
+    border-color: #00d4ff;
+    transform: translateY(-2px);
+  }
+
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .result-score {
+    color: #00d4ff;
+    font-weight: bold;
+  }
+
+  .result-id {
+    color: #888;
+    font-family: monospace;
+  }
+
+  .result-content {
+    color: #e0e0e0;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .result-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #888;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.5rem;
+  }
+
+  .result-type {
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 4px;
   }
 </style>

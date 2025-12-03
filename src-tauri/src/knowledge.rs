@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 /// Vector embedding for semantic search
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct Embedding {
     pub vector: Vec<f32>,
     pub dimension: usize,
@@ -15,6 +16,7 @@ pub struct Embedding {
 
 /// Chunk of text with embedding for RAG
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct TextChunk {
     pub id: String,
     pub deliberation_id: String,
@@ -24,6 +26,7 @@ pub struct TextChunk {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum ChunkType {
     Question,
     Response { round: usize, member: String },

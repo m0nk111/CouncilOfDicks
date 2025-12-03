@@ -31,6 +31,7 @@ enum McpRequest {
 struct AskParams {
     question: String,
     #[serde(default)]
+    #[allow(dead_code)]
     wait_for_consensus: bool,
 }
 
@@ -71,6 +72,7 @@ pub struct McpServer {
     council_manager: Arc<CouncilSessionManager>,
     logger: Arc<Logger>,
     listener: Arc<Mutex<Option<TcpListener>>>,
+    #[allow(dead_code)]
     auth_token: String, // Simple bearer token for localhost auth
 }
 

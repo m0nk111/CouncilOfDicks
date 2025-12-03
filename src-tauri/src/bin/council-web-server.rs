@@ -2,7 +2,7 @@
 // Run with: cargo run --bin council-web-server
 
 use app_lib::{
-    agents::{Agent, AgentPool},
+    agents::AgentPool,
     chat_bot::ChatBot,
     council::CouncilSessionManager,
     state::AppState,
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("======================================\n");
 
     // Initialize app state
-    let app_state = Arc::new(AppState::new());
+    let app_state = Arc::new(AppState::initialize().await);
     let config = app_state.get_config();
 
     println!("✅ Config loaded:");
@@ -24,14 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Model: {}", config.ollama_model);
     println!("   Debug: {}\n", config.debug_enabled);
 
-    // Initialize components
-    let council_manager = Arc::new(CouncilSessionManager::new(None));
-    let agent_pool = Arc::new(AgentPool::new());
+    // Initialize components from AppState
+    let council_manager = Arc::clone(&app_state.council_manager);
+    let agent_pool = Arc::clone(&app_state.agent_pool);
 
     println!("✅ Council manager initialized");
     println!("✅ Agent pool initialized");
 
-    ensure_default_agent(&agent_pool, &app_state, &config.ollama_model).await;
+
 
     let app_state_clone = Arc::clone(&app_state);
     let agent_pool_clone = Arc::clone(&agent_pool);
@@ -51,35 +51,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn ensure_default_agent(
-    agent_pool: &Arc<AgentPool>,
-    app_state: &Arc<AppState>,
-    default_model: &str,
-) {
-    if !agent_pool.list_agents().await.is_empty() {
-        return;
-    }
 
-    let prompt = "You are Pragmatic Sentinel, a pragmatic guardian of the Council. Keep answers concise, cite trade-offs, and always ask for clarification when humans are vague.";
 
-    let mut agent = Agent::new(
-        "Pragmatic Sentinel".to_string(),
-        default_model.to_string(),
-        prompt.to_string(),
-    );
-    agent
-        .metadata
-        .insert("role".to_string(), "default_guardian".to_string());
-
-    match agent_pool.add_agent(agent).await {
-        Ok(agent_id) => {
-            app_state.log_success(
-                "agent",
-                &format!("Seeded default Pragmatic Sentinel agent ({})", agent_id),
-            );
-        }
-        Err(err) => {
-            app_state.log_error("agent", &format!("Failed to seed default agent: {}", err));
-        }
-    }
-}

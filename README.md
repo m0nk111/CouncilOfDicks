@@ -36,6 +36,8 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 
 ⏳ **Next Phase (v0.7.0+):** *(see also `docs/ROADMAP.md` for the detailed plan)*
 - **Council UI + verdict timeline**: Svelte management panel to inspect sessions, stream verdicts from the new store, and manage agent pools inline
+- **Knowledge Bank UI**: Semantic search interface for past deliberations with similarity scoring
+- **Agent Reputation UI**: Visual tier system and performance stats (Accuracy, Reasoning) for each agent
 - **Proof of Human Value v1**: human heartbeat challenges, operator acknowledgements, and kill-switch wiring so nodes degrade gracefully without human input
 - **Agent reputation & persistence**: persist agent configs (per-node + optional shared), implement 5-tier merit system, and expose ranking in the UI + MCP tools
 - **Distributed knowledge & replication**: sync council verdicts / embeddings across nodes (SQLite → IPFS snapshots + CRDT-style deltas)
@@ -207,12 +209,30 @@ chmod +x council-of-dicks_0.5.0_amd64.AppImage
 - **Windows**: WebView2 (auto-installed by Tauri)
 - **macOS**: No additional dependencies
 
-**Recommended:** Pull at least one model in Ollama before starting:
+**Recommended:** Pull the default models in Ollama before starting:
 ```bash
-ollama pull qwen2.5-coder:7b  # Default model (3.8GB)
-# Or smaller models:
-ollama pull llama3.2:3b       # 2GB
-ollama pull qwen2.5:3b        # 2.3GB
+ollama pull mistral:7b
+ollama pull qwen3-coder-30b-q4km:latest
+ollama pull gemma2:9b
+ollama pull gemma2:27b
+ollama pull gpt-oss:20b
+ollama pull deepseek-r1:32b
+```
+
+### ⚙️ Configuration (NEW v0.6.0)
+
+Agents are now configured via `config/agents.json`. You can modify this file to change agent names, models, and system prompts without recompiling the application.
+
+Example `config/agents.json`:
+```json
+[
+  {
+    "name": "Skeptical Analyst",
+    "model": "qwen3-coder-30b-q4km:latest",
+    "system_prompt": "You are Skeptical Analyst...",
+    "metadata": { "role": "default_skeptic" }
+  }
+]
 ```
 
 ### 🚀 Deployment Options (NEW v0.6.0)

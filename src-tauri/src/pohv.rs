@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::broadcast;
 
-const DEFAULT_TIMEOUT_SECS: u64 = 600; // 10 minutes
-const WARNING_THRESHOLD_SECS: u64 = 60; // 1 minute warning
+const DEFAULT_TIMEOUT_SECS: u64 = 3600; // 1 hour
+const WARNING_THRESHOLD_SECS: u64 = 300; // 5 minutes warning
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PoHVStatus {

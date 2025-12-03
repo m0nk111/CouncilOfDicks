@@ -34,13 +34,24 @@ export async function apiCall<T>(
   httpEndpoint: string,
   params?: Record<string, any>
 ): Promise<T> {
-  if (isTauriEnvironment()) {
+  // Defensive check: Ensure we don't try to use Tauri if internals are missing
+  const canUseTauri = isTauriEnvironment() && 
+                      typeof window !== 'undefined' && 
+                      (window as any).__TAURI_INTERNALS__ !== undefined;
+
+  if (canUseTauri) {
     // Native app: use Tauri invoke (lazy import)
-    const invoke = await getTauriInvoke();
-    return await invoke<T>(tauriCommand, params || {});
-  } else {
-    // Web browser: use fetch
-    const baseUrl = getApiBaseUrl();
+    try {
+      const invoke = await getTauriInvoke();
+      return await invoke<T>(tauriCommand, params || {});
+    } catch (e) {
+      console.warn("Tauri invoke failed, falling back to HTTP", e);
+      // Fall through to HTTP
+    }
+  }
+  
+  // Web browser: use fetch
+  const baseUrl = getApiBaseUrl();
     const method = httpEndpoint.startsWith('GET ') ? 'GET' : 'POST';
     const path = httpEndpoint.replace(/^(GET|POST) /, '');
     
@@ -66,8 +77,18 @@ export async function apiCall<T>(
       throw new Error(error.error || `HTTP ${response.status}`);
     }
     
-    return await response.json();
-  }
+    const result = await response.json();
+
+    // Automatically unwrap ApiResponse if present
+    // This handles the { success: true, data: T, error: null } wrapper from the Rust backend
+    if (result && typeof result === 'object' && 'success' in result && 'data' in result) {
+      if (!result.success) {
+        throw new Error(result.error || "API Error");
+      }
+      return result.data;
+    }
+
+    return result;
 }
 
 // Log current mode on startup

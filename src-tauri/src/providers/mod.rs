@@ -40,6 +40,7 @@ impl std::error::Error for ProviderError {}
 
 /// Provider type classification
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(dead_code)]
 pub enum ProviderType {
     Network { requires_internet: bool },
     Local { bundled: bool },
@@ -77,6 +78,7 @@ pub enum FinishReason {
 
 /// Model information
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ModelInfo {
     pub id: String,
     pub name: String,
@@ -95,6 +97,7 @@ pub struct ProviderHealth {
 
 /// AI Provider trait - implemented by all providers
 #[async_trait]
+#[allow(dead_code)]
 pub trait AIProvider: Send + Sync {
     /// Provider identification
     fn name(&self) -> &str;

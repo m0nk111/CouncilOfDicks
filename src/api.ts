@@ -26,7 +26,7 @@ const API_BASE_URL = window.location.hostname === "localhost"
   : `http://${window.location.hostname}:8080`;
 
 export interface AppConfig {
-  olloma_url: string;
+  ollama_url: string;
   ollama_model: string;
   debug_enabled: boolean;
 }
@@ -45,29 +45,49 @@ export interface NetworkStatus {
   port: number;
 }
 
+// Reputation types
+export type AgentTier = "Quarantine" | "Candidate" | "Standard" | "Prime" | "Citadel";
+
+export interface ReputationScore {
+  accuracy: number;
+  reasoning: number;
+  contribution: number;
+  total_votes: number;
+  successful_consensus: number;
+}
+
+export interface AgentReputation {
+  agent_id: string;
+  tier: AgentTier;
+  score: ReputationScore;
+  last_updated: number;
+}
+
+export async function reputationGet(agentId: string): Promise<AgentReputation> {
+  return await apiCall<AgentReputation>("reputation_get", "GET /api/reputation", { agent_id: agentId });
+}
+
 // Verdict types
-export interface Verdict {
-  id: string;
+export interface CouncilVerdictRecord {
   session_id: string;
   question: string;
   verdict: string;
-  reasoning: string;
-  dissent: string | null;
-  confidence: number;
-  model_votes: Record<string, string>;
-  created_at: string;
+  response_count: number;
+  participants: string[];
+  created_at: number;
+  finalized_at: number;
 }
 
-export async function verdictListRecent(limit: number = 10): Promise<Verdict[]> {
-  return await apiCall<Verdict[]>("verdict_list_recent", "GET /api/verdicts/recent", { limit });
+export async function verdictListRecent(limit: number = 10): Promise<CouncilVerdictRecord[]> {
+  return await apiCall<CouncilVerdictRecord[]>("verdict_list_recent", "GET /api/verdicts/recent", { limit });
 }
 
-export async function verdictGet(verdictId: string): Promise<Verdict> {
-  return await apiCall<Verdict>("verdict_get", "GET /api/verdicts/get", { verdict_id: verdictId });
+export async function verdictGet(sessionId: string): Promise<CouncilVerdictRecord | null> {
+  return await apiCall<CouncilVerdictRecord | null>("verdict_get", "GET /api/verdicts/get", { session_id: sessionId });
 }
 
 // Chat types
-export type ChannelType = "general" | "human" | "knowledge" | "vote";
+export type ChannelType = "general" | "human" | "knowledge" | "topic" | "vote";
 export type AuthorType = "human" | "ai" | "system";
 
 export interface Reaction {
@@ -557,4 +577,63 @@ export interface Benchmark {
 // Benchmark Commands
 export async function getBenchmarks(): Promise<Benchmark[]> {
   return await apiCall<Benchmark[]>("get_benchmarks", "GET /api/benchmarks");
+}
+
+// Knowledge Bank Types
+export interface SearchResult {
+  deliberation_id: string;
+  question: string;
+  relevance_score: number;
+  text_snippet: string;
+}
+
+// Knowledge Bank Commands
+export async function kbSearch(query: string, limit: number = 10): Promise<SearchResult[]> {
+  return await apiCall<SearchResult[]>("kb_search", "GET /api/knowledge/search", { query, limit });
+}
+
+// Topic Control Types
+export interface TopicStatus {
+  is_running: boolean;
+  current_topic: string | null;
+  interval_secs: number;
+  last_run: number | null;
+  next_run_in_secs: number | null;
+  queue_length: number;
+  next_agent?: string;
+}
+
+// Topic Control Commands
+export async function topicGetStatus(): Promise<TopicStatus> {
+  return await apiCall<TopicStatus>("topic_get_status", "GET /api/topic/status");
+}
+
+export async function topicSet(topic: string, interval: number): Promise<TopicStatus> {
+  return await apiCall<TopicStatus>("topic_set", "POST /api/topic/set", { topic, interval });
+}
+
+export async function topicStop(): Promise<TopicStatus> {
+  return await apiCall<TopicStatus>("topic_stop", "POST /api/topic/stop");
+}
+
+export async function topicHistory(limit: number = 10): Promise<Array<[string, number]>> {
+  return await apiCall<Array<[string, number]>>("topic_history", "GET /api/topic/history", { limit });
+}
+
+export interface ChatBotStatus {
+  queue: string[];
+  current_thinking: string | null;
+  current_reasoning: string | null;
+}
+
+export async function chatGetStatus(): Promise<ChatBotStatus> {
+  return await apiCall<ChatBotStatus>("chat_get_status", "GET /api/chat/status");
+}
+
+export async function councilGenerateQuestion(): Promise<string> {
+  return await apiCall<string>(
+    "generate_question",
+    "POST /api/council/generate_question",
+    {}
+  );
 }

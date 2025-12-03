@@ -72,6 +72,8 @@ impl HttpServer {
             .route("/api/ollama/ask", post(ollama_ask))
             // Config API
             .route("/api/config", get(config_get))
+            // Council API
+            .route("/api/council/generate_question", post(generate_question))
             // WebSocket for real-time chat
             .route("/ws/chat", get(websocket_handler))
             // Static files (for web UI)
@@ -97,6 +99,7 @@ impl HttpServer {
 
 #[derive(Debug)]
 enum ApiError {
+    #[allow(dead_code)]
     BadRequest(String),
     InternalError(String),
 }
@@ -169,6 +172,21 @@ async fn config_get(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> 
         ollama_model: config.ollama_model.clone(),
         debug_enabled: config.debug_enabled,
     })
+}
+
+async fn generate_question(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<String>, ApiError> {
+    let config = state.get_config();
+    let model = config.ollama_model.clone();
+    let url = config.ollama_url.clone();
+
+    let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
+
+    match crate::ollama::ask_ollama(&url, &model, prompt).await {
+        Ok(question) => Ok(Json(question.trim().to_string())),
+        Err(e) => Err(ApiError::InternalError(format!("Failed to generate question: {}", e))),
+    }
 }
 
 async fn static_handler() -> impl IntoResponse {

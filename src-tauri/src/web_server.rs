@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Json, State},
-    http::StatusCode,
+    extract::{Json, Query, State},
+    http::{StatusCode, Method, header},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
@@ -53,6 +53,17 @@ pub struct GetMessagesRequest {
     pub channel: String,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub struct TopicSetRequest {
+    pub topic: String,
+    pub interval: u64,
+}
+
+#[derive(Deserialize)]
+pub struct TopicHistoryRequest {
+    pub limit: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -301,12 +312,95 @@ async fn get_messages(
     }
 }
 
+// PoHV endpoints
+async fn get_pohv_status(State(state): State<WebState>) -> Response {
+    let status = state.app_state.pohv_system.get_state();
+    (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+}
+
+async fn pohv_heartbeat(State(state): State<WebState>) -> Response {
+    state.app_state.pohv_system.register_heartbeat();
+    let status = state.app_state.pohv_system.get_state();
+    (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+}
+
+// Topic endpoints
+async fn get_topic_status(State(state): State<WebState>) -> Response {
+    let status = state.app_state.topic_manager.get_status();
+    (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+}
+
+async fn set_topic(
+    State(state): State<WebState>,
+    Json(req): Json<TopicSetRequest>,
+) -> Response {
+    match state.app_state.topic_manager.set_topic(req.topic, Some(req.interval)) {
+        Ok(_) => {
+            let status = state.app_state.topic_manager.get_status();
+            (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<String>::err(e)),
+        )
+            .into_response(),
+    }
+}
+
+async fn stop_topic(State(state): State<WebState>) -> Response {
+    state.app_state.topic_manager.stop();
+    let status = state.app_state.topic_manager.get_status();
+    (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+}
+
+async fn get_topic_history(
+    State(state): State<WebState>,
+    Query(req): Query<TopicHistoryRequest>,
+) -> Response {
+    let limit = req.limit.unwrap_or(10) as i64;
+    
+    let history = if let Some(kb) = &state.app_state.knowledge_bank {
+        match kb.get_recent_topics(limit).await {
+            Ok(h) => h,
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<Vec<(String, i64)>>::err(e))).into_response(),
+        }
+    } else {
+        Vec::new()
+    };
+
+    (StatusCode::OK, Json(ApiResponse::ok(history))).into_response()
+}
+
+async fn get_chat_status(State(state): State<WebState>) -> Response {
+    let status = state.app_state.chat_bot_status.lock().unwrap().clone();
+    (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+}
+
+// Generate Question endpoint
+pub async fn generate_question(
+    State(state): State<WebState>,
+) -> Result<Json<String>, StatusCode> {
+    let config = state.app_state.get_config();
+    let model = config.ollama_model.clone();
+    let url = config.ollama_url.clone();
+
+    let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
+
+    match crate::ollama::ask_ollama(&url, &model, prompt).await {
+        Ok(question) => Ok(Json(question.trim().to_string())),
+        Err(e) => {
+            eprintln!("❌ Failed to generate question: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 // Build the web server router
 pub fn create_router(state: WebState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT]);
 
     Router::new()
         .route("/health", get(health_check))
@@ -319,6 +413,14 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/council/create", post(create_council_session))
         .route("/api/chat/send", post(send_message))
         .route("/api/chat/messages", post(get_messages))
+        .route("/api/pohv/status", get(get_pohv_status))
+        .route("/api/pohv/heartbeat", post(pohv_heartbeat))
+        .route("/api/topic/status", get(get_topic_status))
+        .route("/api/topic/set", post(set_topic))
+        .route("/api/topic/stop", post(stop_topic))
+        .route("/api/topic/history", get(get_topic_history))
+        .route("/api/chat/status", get(get_chat_status))
+        .route("/api/council/generate_question", post(generate_question))
         .layer(cors)
         .with_state(state)
 }

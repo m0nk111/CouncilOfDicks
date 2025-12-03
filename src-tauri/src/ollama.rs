@@ -30,6 +30,7 @@ struct OllamaModelInfo {
 /// Ollama client for making API requests
 pub struct OllamaClient {
     config: AppConfig,
+    #[allow(dead_code)]
     logger: Arc<Logger>,
 }
 

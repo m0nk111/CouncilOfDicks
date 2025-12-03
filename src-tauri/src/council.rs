@@ -390,7 +390,7 @@ impl CouncilSessionManager {
             (success_count, error_count)
         };
 
-        let (success_count, error_count) =
+        let (success_count, _error_count) =
             match timeout(Duration::from_secs(timeout_seconds), wait_future).await {
                 Ok((success, errors)) => {
                     if success > 0 {

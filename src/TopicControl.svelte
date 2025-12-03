@@ -1,32 +1,45 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { onMount, onDestroy } from "svelte";
+  import { topicGetStatus, topicSet, topicStop, topicHistory } from "./api";
 
   let topic = "";
-  let interval = 300; // 5 minutes
+  let interval = 600; // 10 minutes
   let status: any = null;
   let timer: any;
+  let history: Array<[string, number]> = [];
 
   async function updateStatus() {
     try {
-      status = await invoke("topic_get_status");
+      status = await topicGetStatus();
     } catch (e) {
       console.error("Failed to get topic status", e);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      history = await topicHistory(5);
+    } catch (e) {
+      console.error("Failed to load history", e);
     }
   }
 
   async function startTopic() {
     if (!topic) return;
     try {
-      status = await invoke("topic_set", { topic, interval });
+      // Ensure interval is a number
+      const intervalNum = parseInt(interval.toString(), 10);
+      status = await topicSet(topic, intervalNum);
+      await loadHistory();
     } catch (e) {
       console.error("Failed to set topic", e);
+      alert("Failed to set topic: " + e);
     }
   }
 
   async function stopTopic() {
     try {
-      status = await invoke("topic_stop");
+      status = await topicStop();
     } catch (e) {
       console.error("Failed to stop topic", e);
     }
@@ -34,6 +47,7 @@
 
   onMount(() => {
     updateStatus();
+    loadHistory();
     timer = setInterval(updateStatus, 5000);
   });
 
@@ -87,6 +101,20 @@
           <span>Next message in: {status.next_run_in_secs}s</span>
         </div>
       {/if}
+    </div>
+  {/if}
+
+  {#if history.length > 0}
+    <div class="mt-4 border-t border-gray-700 pt-2">
+      <h4 class="text-sm font-bold text-gray-400 mb-2">Recent Topics</h4>
+      <ul class="space-y-1">
+        {#each history as [hTopic, timestamp]}
+          <li class="text-xs text-gray-500 flex justify-between cursor-pointer hover:text-gray-300" on:click={() => topic = hTopic}>
+            <span>{hTopic}</span>
+            <span>{new Date(timestamp * 1000).toLocaleString()}</span>
+          </li>
+        {/each}
+      </ul>
     </div>
   {/if}
 </div>
