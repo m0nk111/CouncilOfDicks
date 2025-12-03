@@ -1019,6 +1019,15 @@ async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, 
     ollama::ask_ollama(&url, &model, prompt).await.map(|q| q.trim().to_string())
 }
 
+#[tauri::command]
+fn set_user_handle(handle: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.update_config(|config| {
+        config.user_handle = handle.clone();
+    });
+    state.log_info("set_user_handle", &format!("🔧 User handle updated to: {}", handle));
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize app state
@@ -1032,6 +1041,7 @@ pub fn run() {
             ask_ollama,
             generate_question,
             get_config,
+            set_user_handle,
             set_debug,
             get_metrics,
             p2p_start,

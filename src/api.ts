@@ -29,6 +29,7 @@ export interface AppConfig {
   ollama_url: string;
   ollama_model: string;
   debug_enabled: boolean;
+  user_handle?: string;
 }
 
 export interface PerformanceMetrics {
@@ -476,6 +477,7 @@ export async function providerGenerateUsername(modelName: string, providerName: 
 export interface Agent {
   id: string;
   name: string;
+  handle?: string;
   model: string;
   system_prompt: string;
   enabled_tools: string[];
@@ -636,4 +638,12 @@ export async function councilGenerateQuestion(): Promise<string> {
     "POST /api/council/generate_question",
     {}
   );
+}
+
+export async function setUserHandle(handle: string): Promise<void> {
+  if (isTauriEnvironment()) {
+    return await tauriInvoke("set_user_handle", { handle });
+  } else {
+    console.warn("setUserHandle not available in web mode");
+  }
 }

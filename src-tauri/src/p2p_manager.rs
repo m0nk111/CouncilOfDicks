@@ -10,14 +10,16 @@ use tokio::sync::Mutex;
 pub struct P2PManager {
     network: Arc<Mutex<Option<P2PNetwork>>>,
     port: u16,
+    bootstrap_peers: Vec<String>,
 }
 
 impl P2PManager {
     /// Create new P2P manager
-    pub fn new(port: u16) -> Self {
+    pub fn new(port: u16, bootstrap_peers: Vec<String>) -> Self {
         Self {
             network: Arc::new(Mutex::new(None)),
             port,
+            bootstrap_peers,
         }
     }
 
@@ -36,6 +38,18 @@ impl P2PManager {
         network
             .listen(self.port)
             .map_err(|e| format!("Failed to start listening: {}", e))?;
+
+        // Connect to bootstrap peers
+        for peer_addr in &self.bootstrap_peers {
+            if let Ok(addr) = peer_addr.parse::<libp2p::Multiaddr>() {
+                println!("🔗 Attempting to connect to bootstrap peer: {}", peer_addr);
+                if let Err(e) = network.dial(addr) {
+                    eprintln!("⚠️ Failed to dial bootstrap peer {}: {}", peer_addr, e);
+                }
+            } else {
+                eprintln!("⚠️ Invalid bootstrap peer address: {}", peer_addr);
+            }
+        }
 
         // Subscribe to default council topic
         network

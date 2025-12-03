@@ -49,9 +49,10 @@ impl AppState {
     }
 
     pub async fn initialize() -> Self {
-        let base_config = AppConfig::default();
+        let base_config = AppConfig::load();
         let logger = Arc::new(Logger::new(false));
         logger.set_debug_enabled(base_config.debug_enabled);
+        logger.info("config", &format!("Loaded configuration (handle: {})", base_config.user_handle));
 
         // Ensure data directory exists for persistence
         let data_dir = PathBuf::from("./data");
@@ -136,13 +137,22 @@ impl AppState {
         let agent_pool = Arc::new(AgentPool::new());
 
         // Load agents from config/agents.json
-        let agents_config_path = std::path::Path::new("config/agents.json");
+        let mut agents_config_path = std::path::PathBuf::from("config/agents.json");
+        if !agents_config_path.exists() {
+            // Try parent directory (for when running from src-tauri)
+            let parent_path = std::path::PathBuf::from("../config/agents.json");
+            if parent_path.exists() {
+                agents_config_path = parent_path;
+            }
+        }
+
         if agents_config_path.exists() {
-            logger.info("agent", "Loading agents from config/agents.json");
-            if let Ok(content) = fs::read_to_string(agents_config_path) {
+            logger.info("agent", &format!("Loading agents from {:?}", agents_config_path));
+            if let Ok(content) = fs::read_to_string(&agents_config_path) {
                 #[derive(serde::Deserialize)]
                 struct AgentConfig {
                     name: String,
+                    handle: Option<String>,
                     model: String,
                     system_prompt: String,
                     metadata: Option<std::collections::HashMap<String, String>>,
@@ -156,11 +166,12 @@ impl AppState {
                                 config.model.clone(),
                                 config.system_prompt,
                             );
+                            if let Some(handle) = config.handle {
+                                agent.handle = handle;
+                            }
                             if let Some(metadata) = config.metadata {
                                 agent.metadata = metadata;
-                            }
-                            
-                            if let Err(e) = agent_pool.add_agent(agent).await {
+                            }                            if let Err(e) = agent_pool.add_agent(agent).await {
                                 logger.error("agent", &format!("Failed to add agent {}: {}", config.name, e));
                             } else {
                                 logger.success("agent", &format!("Loaded agent: {} ({})", config.name, config.model));
@@ -172,10 +183,10 @@ impl AppState {
                     }
                 }
             } else {
-                logger.error("agent", "Failed to read agents.json");
+                logger.error("agent", &format!("Failed to read {:?}", agents_config_path));
             }
         } else {
-            logger.warn("agent", "config/agents.json not found. No agents loaded.");
+            logger.warn("agent", "config/agents.json not found (checked ./config/agents.json and ../config/agents.json). No agents loaded.");
         }
         let pohv_system = Arc::new(PoHVSystem::new());
         let topic_manager = Arc::new(TopicManager::new());
@@ -189,11 +200,14 @@ impl AppState {
             topic_manager.force_set_topic(topic.clone(), Some(base_config.topic_interval));
         }
 
+        let p2p_port = base_config.p2p_port;
+        let bootstrap_peers = base_config.bootstrap_peers.clone();
+
         let state = Self {
             config: Arc::new(Mutex::new(base_config)),
             logger: logger.clone(),
             metrics: Arc::new(Mutex::new(MetricsCollector::new())),
-            p2p_manager: Arc::new(P2PManager::new(9000)),
+            p2p_manager: Arc::new(P2PManager::new(p2p_port, bootstrap_peers)),
             council_manager,
             mcp_server,
             signing_identity,

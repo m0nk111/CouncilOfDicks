@@ -34,7 +34,7 @@ impl ChatBot {
             agent_pool,
             last_message_id: None,
             enabled: true,
-            max_agents_per_message: 2,
+            max_agents_per_message: 4,
             next_agent_index: 0,
             pending_responses: VecDeque::new(),
         }
@@ -54,11 +54,9 @@ impl ChatBot {
             // Check for new messages every 1 second (faster for queue processing)
             sleep(Duration::from_secs(1)).await;
 
-            // println!("[CHATBOT] Tick - checking for messages...");
             if let Err(e) = self.tick().await {
                 self.app_state
                     .log_error("chat_bot", &format!("Error: {}", e));
-                println!("[CHATBOT] Error: {}", e);
             }
         }
     }
@@ -99,39 +97,82 @@ impl ChatBot {
             // Update last processed message
             self.last_message_id = Some(latest_msg.id.clone());
 
-            // Get available agents to respond
+            // Check for @mentions
             let agents = self.agent_pool.list_agents().await;
-            if agents.is_empty() {
-                return Ok(());
+            let mut mentioned_agents = Vec::new();
+
+            for agent in &agents {
+                let handle = format!("@{}", agent.handle);
+                if latest_msg.content.to_lowercase().contains(&handle.to_lowercase()) {
+                    self.app_state.log_debug("chat_bot", &format!("Found mention for handle: {}", handle));
+                    mentioned_agents.push(agent.clone());
+                }
             }
 
-            // Build context
-            let recent_slice = &messages[..5.min(messages.len())];
-            let context = self.build_context(recent_slice);
-
-            let total_agents = agents.len();
-            let responders = self.max_agents_per_message.min(total_agents);
-            let start_index = self.next_agent_index % total_agents;
-            self.next_agent_index = (start_index + responders) % total_agents;
-
-            // Add to queue
-            let mut status = self.app_state.chat_bot_status.lock().unwrap();
-            
-            for offset in 0..responders {
-                let idx = (start_index + offset) % total_agents;
-                let agent = &agents[idx];
-                
-                self.app_state.log_debug(
+            if !mentioned_agents.is_empty() {
+                self.app_state.log_info(
                     "chat_bot",
-                    &format!("➕ Queuing agent: {}", agent.name),
+                    &format!("🎯 Direct mention detected for {} agents", mentioned_agents.len()),
                 );
-
-                self.pending_responses.push_back((agent.clone(), latest_msg.clone(), context.clone()));
-                status.queue.push_back(agent.name.clone());
+                for agent in mentioned_agents {
+                    self.queue_response(agent, latest_msg.clone()).await;
+                }
+            } else {
+                // No mentions, use round robin
+                self.queue_round_robin_response(latest_msg.clone()).await;
             }
         }
 
         Ok(())
+    }
+
+    async fn queue_response(&mut self, agent: Agent, message: Message) {
+        // Build context
+        let messages = self
+            .app_state
+            .channel_manager
+            .get_messages(ChannelType::General, 5, 0)
+            .unwrap_or_default();
+            
+        let context = self.build_context(&messages);
+
+        self.app_state.log_debug(
+            "chat_bot",
+            &format!("➕ Queuing agent: {}", agent.name),
+        );
+
+        // Add to internal queue
+        self.pending_responses.push_back((agent.clone(), message, context));
+        
+        // Update public status
+        let mut status = self.app_state.chat_bot_status.lock().unwrap();
+        status.queue.push_back(agent.name);
+    }
+
+    async fn queue_round_robin_response(&mut self, message: Message) {
+        let agents = self.agent_pool.list_agents().await;
+        if agents.is_empty() {
+            return;
+        }
+
+        let active_agents: Vec<Agent> = agents.into_iter().filter(|a| a.active).collect();
+        if active_agents.is_empty() {
+            return;
+        }
+
+        // Pick next agents (round robin)
+        let mut selected_agents = Vec::new();
+        for _ in 0..self.max_agents_per_message {
+            if self.next_agent_index >= active_agents.len() {
+                self.next_agent_index = 0;
+            }
+            selected_agents.push(active_agents[self.next_agent_index].clone());
+            self.next_agent_index += 1;
+        }
+
+        for agent in selected_agents {
+            self.queue_response(agent, message.clone()).await;
+        }
     }
 
     async fn process_queue(&mut self) -> Result<(), String> {
@@ -187,9 +228,6 @@ impl ChatBot {
         Ok(())
     }
 
-    // Removed old check_and_respond
-
-
     async fn respond_with_agent(
         &self,
         agent: &Agent,
@@ -200,18 +238,20 @@ impl ChatBot {
         let base_prompt = prompt::compose_system_prompt(&agent.system_prompt);
         let prompt = if context.is_empty() {
             format!(
-                "{}\n\nLatest human message from {}:\n{}\n\nRespond as Pragmatic Sentinel with concise, pragmatic guidance.",
+                "{}\n\nLatest human message from {}:\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic.",
                 base_prompt,
                 msg.author,
-                msg.content
+                msg.content,
+                agent.name
             )
         } else {
             format!(
-                "{}\n\n# Recent Conversation\n{}\n\n# Latest human message from {}\n{}\n\nRespond as Pragmatic Sentinel with concise, pragmatic guidance grounded in the above context.",
+                "{}\n\n# Recent Conversation\n{}\n\n# Latest human message from {}\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic, grounded in the above context.",
                 base_prompt,
                 context,
                 msg.author,
-                msg.content
+                msg.content,
+                agent.name
             )
         };
 

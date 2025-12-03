@@ -16,6 +16,10 @@ pub struct Agent {
     /// Display name (e.g., "The Pragmatist", "Code Reviewer")
     pub name: String,
 
+    /// Unique handle for mentions (e.g., "pragmatic_sentinel")
+    #[serde(default)]
+    pub handle: String,
+
     /// Ollama model to use (e.g., "qwen2.5-coder:7b", "llama3:70b")
     pub model: String,
 
@@ -38,9 +42,11 @@ pub struct Agent {
 impl Agent {
     /// Create new agent with defaults
     pub fn new(name: String, model: String, system_prompt: String) -> Self {
+        let handle = name.to_lowercase().replace(" ", "_");
         Self {
             id: Uuid::new_v4().to_string(),
             name,
+            handle,
             model,
             system_prompt,
             enabled_tools: vec!["send_message".to_string(), "vote".to_string()],

@@ -12,6 +12,8 @@
     agentList,
     chatGetStatus,
     topicGetStatus,
+    setUserHandle,
+    getConfig,
     type ChatMessage,
     type ChannelType,
     type Agent,
@@ -25,6 +27,8 @@
   let messages: ChatMessage[] = [];
   let messageInput = "";
   let username = "human_user"; // TODO: Get from auth/config
+  let userHandle = "human_user";
+  let showHandleInput = false;
   let loading = false;
   let generating = false;
   let error = "";
@@ -33,6 +37,13 @@
   let nextTopicAgent: string | null = null;
   let nextRunInSecs: number | null = null;
   
+  // Autocomplete state
+  let showAutocomplete = false;
+  let autocompleteFilter = "";
+  let autocompleteIndex = 0;
+  let autocompleteAgents: Agent[] = [];
+  let inputElement: HTMLTextAreaElement;
+
   // Council state for participants sidebar
   type ParticipantSummary = {
     id: string;
@@ -253,6 +264,7 @@
   async function loadAgentRoster() {
     try {
       const agents = await agentList();
+      autocompleteAgents = agents; // Store for autocomplete
       const activeAgents = agents.filter((agent: Agent) => agent.active !== false);
       if (activeAgents.length > 0) {
         const roster = activeAgents.map((agent: Agent) => ({
@@ -345,8 +357,17 @@
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  onMount(() => {
+  onMount(async () => {
     console.log("ChatInterface mounted");
+    try {
+      const config = await getConfig();
+      if (config.user_handle) {
+        username = config.user_handle;
+        userHandle = config.user_handle;
+      }
+    } catch (e) {
+      console.error("Failed to load config:", e);
+    }
     loadMessages();
     loadAgentRoster(); // Load roster immediately
     loadActiveSession();
@@ -379,6 +400,95 @@
       clearInterval(countdownInterval);
     };
   });
+
+  // Autocomplete and Handle functions
+  function handleInput(event: Event) {
+    const target = event.target as HTMLTextAreaElement;
+    const value = target.value;
+    const cursorPosition = target.selectionStart || 0;
+    
+    // Find the word being typed
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const words = textBeforeCursor.split(/\s/);
+    const currentWord = words[words.length - 1];
+    
+    if (currentWord.startsWith("@")) {
+      const filter = currentWord.slice(1).toLowerCase();
+      autocompleteFilter = filter;
+      showAutocomplete = true;
+      autocompleteIndex = 0;
+    } else {
+      showAutocomplete = false;
+    }
+  }
+
+  function getHandle(agent: Agent): string {
+    if (agent.handle && agent.handle.trim().length > 0) return agent.handle;
+    return agent.name.toLowerCase().replace(/\s+/g, "_");
+  }
+
+  function selectAgent(agent: Agent) {
+    // Use a type assertion or check if inputElement is bound
+    // If inputElement is not bound, we can try to find it or just use document.activeElement if appropriate
+    // But better to bind it in the template: bind:this={inputElement}
+    if (!inputElement && document.activeElement instanceof HTMLTextAreaElement) {
+        inputElement = document.activeElement as any;
+    }
+
+    if (!inputElement) return;
+    
+    const cursorPosition = inputElement.selectionStart || 0;
+    const textBeforeCursor = messageInput.slice(0, cursorPosition);
+    const textAfterCursor = messageInput.slice(cursorPosition);
+    
+    const words = textBeforeCursor.split(/\s/);
+    words.pop(); // Remove the partial mention
+    
+    const newTextBefore = words.join(" ") + (words.length > 0 ? " " : "") + `@${getHandle(agent)} `;
+    
+    messageInput = newTextBefore + textAfterCursor;
+    showAutocomplete = false;
+    
+    // Restore focus and set cursor position
+    setTimeout(() => {
+      inputElement.focus();
+      inputElement.setSelectionRange(newTextBefore.length, newTextBefore.length);
+    }, 0);
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (showAutocomplete) {
+      const filteredAgents = autocompleteAgents.filter(a => 
+        getHandle(a).toLowerCase().includes(autocompleteFilter) ||
+        a.name.toLowerCase().includes(autocompleteFilter)
+      );
+      
+      if (filteredAgents.length === 0) return;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        autocompleteIndex = (autocompleteIndex + 1) % filteredAgents.length;
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        autocompleteIndex = (autocompleteIndex - 1 + filteredAgents.length) % filteredAgents.length;
+      } else if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        selectAgent(filteredAgents[autocompleteIndex]);
+      } else if (event.key === "Escape") {
+        showAutocomplete = false;
+      }
+    }
+  }
+
+  async function saveHandle() {
+    try {
+      await setUserHandle(userHandle);
+      username = userHandle;
+      showHandleInput = false;
+    } catch (e) {
+      console.error("Failed to save handle:", e);
+    }
+  }
 </script>
 
 <div class="chat-container">
@@ -386,7 +496,21 @@
   <div class="sidebar">
     <div class="sidebar-header">
       <h2>Council Of Dicks</h2>
-      <div class="user-info">@{username}</div>
+      {#if showHandleInput}
+        <div class="handle-editor">
+          <input 
+            bind:value={userHandle} 
+            on:keydown={(e) => e.key === 'Enter' && saveHandle()}
+            placeholder="Enter handle"
+          />
+          <button on:click={saveHandle}>💾</button>
+        </div>
+      {:else}
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <div class="user-info handle-display" on:click={() => showHandleInput = true} title="Click to change handle">
+          @{username} ✏️
+        </div>
+      {/if}
     </div>
 
     <div class="channels">
@@ -422,15 +546,15 @@
           <p class="channel-description">
             {channels.find((c) => c.type === selectedChannel)?.description}
           </p>
+          {#if nextRunInSecs !== null}
+             <span class="topic-timer" style="margin-left: 1rem;">⏱️ {formatDuration(nextRunInSecs)}</span>
+          {/if}
           {#if currentTopic && selectedChannel === 'topic'}
             <div class="current-topic">
               <span class="topic-label">Current Topic:</span>
               <span class="topic-text">{currentTopic}</span>
               {#if nextTopicAgent}
                 <span class="topic-next">Next: {getAgentDisplayName(nextTopicAgent)}</span>
-                {#if nextRunInSecs !== null}
-                  <span class="topic-timer">⏱️ {formatDuration(nextRunInSecs)}</span>
-                {/if}
               {/if}
             </div>
           {/if}
@@ -530,6 +654,21 @@
 
     <!-- Input -->
     <div class="input-container">
+      {#if showAutocomplete}
+        <div class="autocomplete-popup">
+          {#each autocompleteAgents.filter(a => getHandle(a).toLowerCase().includes(autocompleteFilter) || a.name.toLowerCase().includes(autocompleteFilter)) as agent, i}
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <div 
+              class="autocomplete-item" 
+              class:selected={i === autocompleteIndex}
+              on:click={() => selectAgent(agent)}
+            >
+              <span class="handle">@{getHandle(agent)}</span>
+              <span class="name">{agent.name}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
       <button class="gen-btn" on:click={generateQuestion} title="Generate random question" disabled={generating}>
         {#if generating}
           ⏳
@@ -538,8 +677,11 @@
         {/if}
       </button>
       <textarea
+        bind:this={inputElement}
         bind:value={messageInput}
         on:keypress={handleKeyPress}
+        on:input={handleInput}
+        on:keydown={handleKeydown}
         placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
         rows="2"
       ></textarea>
@@ -980,6 +1122,7 @@
     background: #16213e;
     display: flex;
     gap: 0.75rem;
+    position: relative;
   }
 
   textarea {
@@ -1134,6 +1277,14 @@
     font-size: 0.9rem;
     color: #eee;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .member-handle {
+    font-size: 0.75rem;
+    color: #666;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1356,11 +1507,71 @@
     align-items: center;
     gap: 0.5rem;
     color: #7d90b2;
-    font-size: 0.9rem;
   }
 
-  .idle-dot {
-    background: #7d90b2;
-    box-shadow: none;
+  .autocomplete-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: #1a1a2e;
+    border: 1px solid #00d4ff;
+    border-radius: 4px;
+    width: 300px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  .autocomplete-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #e0e0e0;
+  }
+
+  .autocomplete-item:hover, .autocomplete-item.selected {
+    background: rgba(0, 212, 255, 0.2);
+  }
+
+  .autocomplete-item .handle {
+    font-weight: bold;
+    color: #00d4ff;
+  }
+
+  .autocomplete-item .name {
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  .handle-editor {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+  }
+
+  .handle-editor input {
+    background: #0f3460;
+    border: 1px solid #333;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+
+  .handle-display {
+    cursor: pointer;
+    color: #00d4ff;
+    font-size: 0.9rem;
+    margin-left: 1rem;
+  }
+  
+  .handle-display:hover {
+    text-decoration: underline;
   }
 </style>

@@ -3,19 +3,28 @@
 This roadmap reflects the latest reality after landing the council verdict archive and the immutable TCOD system context.
 
 ## ✅ Recently Landed
+- **User Experience Improvements** (v0.6.0)
+  - Fixed UUID display in autocomplete (now shows `@handle`)
+  - Fixed "Qwen 2.5" config loading issue (backend path resolution)
+  - **Heartbeat Visibility**: Timer now always visible in channel header
+  - **Twitter-style Mentions**: Agents explicitly address participants (`@human_user`)
+  - **Config Persistence**: User handle saved to disk
 - Council verdict store (SQLite + API) so every consensus is queryable and feeds future RAG/IPFS plans
 - Immutable TCOD system directive injected into every LLM call before user prompts, preventing hostile overrides
 - Knowledge Bank + duplicate filter wired into chat flow, giving us the substrate for persistence and search
 - **Council operator UI** (Session management, Verdict timeline, Knowledge search, Agent reputation)
 
 ## 🎯 Near-Term (v0.7.0)
-1. **Proof of Human Value v1**
+1. **LLM Self-Configuration**
+   - Agents generate their own names/handles/roles based on environment context
+   - "Auto-configure" mode for new agents
+2. **Proof of Human Value v1**
    - Heartbeat prompts + acknowledgement logging
    - Graceful degradation/killswitch tied to missed heartbeats
-2. **Agent reputation + persistence**
+3. **Agent reputation + persistence**
    - Persist agent configs per node, optional sharing
    - 5-tier merit system reflected in council selection + MCP
-3. **Network/API hardening**
+4. **Network/API hardening**
    - Auth + CORS policy for HTTP mode
    - Circuit breaker + proof-of-work throttling for spam bursts
 5. **Distributed knowledge groundwork**

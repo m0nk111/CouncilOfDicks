@@ -2,9 +2,7 @@
 // Run with: cargo run --bin council-web-server
 
 use app_lib::{
-    agents::AgentPool,
     chat_bot::ChatBot,
-    council::CouncilSessionManager,
     state::AppState,
     web_server::start_web_server,
 };

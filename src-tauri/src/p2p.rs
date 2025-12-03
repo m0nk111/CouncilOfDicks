@@ -5,7 +5,7 @@ use libp2p::{
     futures::StreamExt,
     gossipsub, identify, kad, mdns, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, PeerId, Swarm, Transport,
+    tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
@@ -122,6 +122,17 @@ impl P2PNetwork {
             .gossipsub
             .publish(topic, message)?;
         Ok(())
+    }
+
+    /// Dial a peer by address
+    pub fn dial(&mut self, addr: Multiaddr) -> Result<(), Box<dyn Error>> {
+        self.swarm.dial(addr)?;
+        Ok(())
+    }
+
+    /// Add a bootstrap node to Kademlia
+    pub fn add_bootstrap_node(&mut self, peer_id: PeerId, addr: Multiaddr) {
+        self.swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
     }
 
     /// Get local peer ID

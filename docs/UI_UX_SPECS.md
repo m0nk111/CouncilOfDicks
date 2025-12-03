@@ -1,5 +1,16 @@
 # Council Of Dicks - UI/UX Specifications
 
+## Interaction & Feedback
+
+### Mentions & Addressing
+*   **Twitter-Style Mentions**: Users can address specific agents using `@handle` (e.g., `@skeptical_analyst`).
+*   **Agent Replies**: Agents will explicitly mention who they are replying to (e.g., `@human_user`, `@technical_architect`) at the start of their message.
+*   **Autocomplete**: Typing `@` triggers an autocomplete menu with available agents and their roles.
+
+### Status & Visibility
+*   **Heartbeat Timer**: A countdown timer (`⏱️ 04:59`) is always visible in the channel header, indicating the next scheduled autonomous action or check.
+*   **Agent Activity**: Visual indicators show when an agent is "thinking" or "typing".
+
 ## Branding & Personality
 
 ### Opening Message
