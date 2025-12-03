@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (2025-12-03)
+### Added (2025-12-03) - UX & Persistence Update
+- **User Handle Persistence**: User handle is now saved to `config/app_config.json` and persists across restarts.
+- **Twitter-Style Mentions**: Agents now explicitly address participants (e.g., `@human_user`, `@technical_architect`) at the start of their responses.
+- **Heartbeat Visibility**: The heartbeat/topic timer is now always visible in the channel header.
+- **Autocomplete Improvements**: The `@` autocomplete menu now displays agent handles instead of raw UUIDs.
+
+### Fixed (2025-12-03)
+- **Config Loading**: Fixed an issue where the backend failed to load `config/agents.json` when running from the `src-tauri` directory (added parent directory fallback).
+- **Agent Participation**: Increased `max_agents_per_message` from 2 to 4 to encourage broader council debate.
+
+### Added (2025-12-03) - Earlier Updates
 - **Agent Configuration**: Moved agent definitions from hardcoded Rust to `config/agents.json`.
   - Allows modifying agent names, models, and prompts without recompiling.
   - Automatically loads agents at startup.
