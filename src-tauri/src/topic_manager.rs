@@ -244,7 +244,7 @@ impl TopicManager {
                     config.ollama_url.clone(),
                     agent.model.clone(),
                     app_state.logger.clone(),
-                );
+                ).with_auth(config.ollama_username.clone(), config.ollama_password.clone());
                 
                 use crate::providers::AIProvider;
                 // We need to use the AIProvider trait method `generate` or similar, but `ask` was my guess.

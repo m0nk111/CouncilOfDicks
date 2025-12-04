@@ -2,7 +2,7 @@ use crate::agents::{Agent, AgentPool};
 use crate::chat::{
     ChannelManager, DuplicateFilter, Message as ChatMessage, RateLimiter, SpamDetector,
 };
-use crate::chat_bot::ChatBotStatus;
+use crate::chat_bot::{ChatBot, ChatBotStatus};
 use crate::config::AppConfig;
 use crate::council::CouncilSessionManager;
 use crate::crypto::SigningIdentity;
@@ -14,6 +14,7 @@ use crate::p2p_manager::P2PManager;
 use crate::pohv::PoHVSystem;
 use crate::reputation::ReputationManager;
 use crate::topic_manager::TopicManager;
+use crate::constitution::ConstitutionManager;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -39,6 +40,7 @@ pub struct AppState {
     pub topic_manager: Arc<TopicManager>,
     pub reputation_manager: Arc<ReputationManager>,
     pub chat_bot_status: Arc<Mutex<ChatBotStatus>>,
+    pub constitution_manager: Arc<ConstitutionManager>,
 }
 
 impl AppState {
@@ -191,6 +193,7 @@ impl AppState {
         let pohv_system = Arc::new(PoHVSystem::new());
         let topic_manager = Arc::new(TopicManager::new());
         let reputation_manager = Arc::new(ReputationManager::new(knowledge_bank.clone()));
+        let constitution_manager = Arc::new(ConstitutionManager::new());
         
         // Load reputations from DB
         reputation_manager.load_from_db().await;
@@ -217,15 +220,24 @@ impl AppState {
             rate_limiter,
             spam_detector,
             websocket_broadcast: Arc::new(ws_tx),
-            agent_pool,
+            agent_pool: agent_pool.clone(),
             pohv_system,
             topic_manager,
             reputation_manager,
             chat_bot_status,
+            constitution_manager,
         };
         
         // Start background tasks
         crate::topic_manager::start_topic_loop(Arc::new(state.clone()));
+
+        // Start ChatBot monitoring
+        let chat_bot_state = Arc::new(state.clone());
+        let chat_bot_agents = agent_pool.clone();
+        tokio::spawn(async move {
+            let mut chat_bot = ChatBot::new(chat_bot_state, chat_bot_agents);
+            chat_bot.start_monitoring().await;
+        });
 
         // Start P2P event loop
         let p2p_state = Arc::new(state.clone());
@@ -249,6 +261,9 @@ impl AppState {
     {
         let mut config = self.config.lock().unwrap();
         f(&mut config);
+        if let Err(e) = config.save() {
+            self.logger.error("config", &format!("Failed to save config: {}", e));
+        }
     }
 
     pub fn log_debug(&self, component: &str, message: &str) {
@@ -257,6 +272,10 @@ impl AppState {
 
     pub fn log_info(&self, component: &str, message: &str) {
         self.logger.info(component, message);
+    }
+
+    pub fn log_warn(&self, component: &str, message: &str) {
+        self.logger.warn(component, message);
     }
 
     pub fn log_error(&self, component: &str, message: &str) {

@@ -53,6 +53,13 @@ pub enum CouncilMessage {
         timestamp: u64,
     },
 
+    /// Update to the Constitution (Admin only)
+    ConstitutionUpdate {
+        content: String,
+        signature: String, // Must match Admin Key
+        timestamp: u64,
+    },
+
     /// Update the active topic for the network
     TopicUpdate {
         topic: String,
@@ -106,6 +113,7 @@ impl CouncilMessage {
             CouncilMessage::PeerAnnouncement { .. } => "PeerAnnouncement",
             CouncilMessage::TopicUpdate { .. } => "TopicUpdate",
             CouncilMessage::ReputationSync { .. } => "ReputationSync",
+            CouncilMessage::ConstitutionUpdate { .. } => "ConstitutionUpdate",
         }
     }
 }

@@ -221,6 +221,15 @@ impl P2PManager {
                                                 app_state.logger.warn("p2p", &format!("Failed to update reputation: {}", e));
                                             }
                                         },
+                                        crate::protocol::CouncilMessage::ConstitutionUpdate { content, signature: _, timestamp: _ } => {
+                                            app_state.logger.info("p2p", "Received ConstitutionUpdate");
+                                            // TODO: Verify signature against Admin Key
+                                            if let Err(e) = app_state.constitution_manager.update_content(content) {
+                                                app_state.logger.error("p2p", &format!("Failed to update constitution: {}", e));
+                                            } else {
+                                                app_state.logger.success("p2p", "Constitution updated from network");
+                                            }
+                                        },
                                         _ => {}
                                     }
                                 }
@@ -255,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_manager_creation() {
-        let manager = P2PManager::new(9000);
+        let manager = P2PManager::new(9000, vec![]);
         let status = manager.status().await;
 
         assert_eq!(status.running, false);
@@ -264,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop_network() {
-        let manager = P2PManager::new(9001);
+        let manager = P2PManager::new(9001, vec![]);
 
         // Start network
         let result = manager.start().await;
@@ -284,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_double_start_fails() {
-        let manager = P2PManager::new(9002);
+        let manager = P2PManager::new(9002, vec![]);
 
         let result1 = manager.start().await;
         assert!(result1.is_ok());
@@ -296,7 +305,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_without_start() {
-        let manager = P2PManager::new(9003);
+        let manager = P2PManager::new(9003, vec![]);
 
         let result = manager.stop().await;
         assert!(result.is_err());
@@ -305,7 +314,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_running() {
-        let manager = P2PManager::new(9004);
+        let manager = P2PManager::new(9004, vec![]);
 
         assert_eq!(manager.is_running().await, false);
 

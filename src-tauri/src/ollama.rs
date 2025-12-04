@@ -40,7 +40,12 @@ impl OllamaClient {
     }
 
     pub async fn ask(&self, model: &str, prompt: &str) -> Result<String, String> {
-        ask_ollama(&self.config.ollama_url, model, prompt.to_string()).await
+        let auth = if let (Some(u), Some(p)) = (&self.config.ollama_username, &self.config.ollama_password) {
+            Some((u.as_str(), p.as_str()))
+        } else {
+            None
+        };
+        ask_ollama_with_auth(&self.config.ollama_url, model, prompt.to_string(), auth).await
     }
 }
 
@@ -51,11 +56,16 @@ pub async fn ask_ollama_internal(
     prompt: String,
 ) -> Result<String, String> {
     let config = state.get_config();
-    ask_ollama(&config.ollama_url, &model, prompt).await
+    let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
+        Some((u.as_str(), p.as_str()))
+    } else {
+        None
+    };
+    ask_ollama_with_auth(&config.ollama_url, &model, prompt, auth).await
 }
 
 pub async fn ask_ollama(url: &str, model: &str, prompt: String) -> Result<String, String> {
-    ask_ollama_with_auth(url, model, prompt, Some(("CouncilOfDicks", ""))).await
+    ask_ollama_with_auth(url, model, prompt, None).await
 }
 
 pub async fn ask_ollama_with_auth(

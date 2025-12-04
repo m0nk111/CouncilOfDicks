@@ -315,9 +315,10 @@ impl CouncilSessionManager {
         agent_pool: Arc<AgentPool>,
         agent_ids: Vec<String>,
         ollama_url: &str,
+        auth: Option<(String, String)>,
     ) -> Result<String, String> {
         self.create_session_with_agents_and_timeout(
-            question, agent_pool, agent_ids, ollama_url, 30, // Default 30 second timeout
+            question, agent_pool, agent_ids, ollama_url, 30, auth, // Default 30 second timeout
         )
         .await
     }
@@ -335,6 +336,7 @@ impl CouncilSessionManager {
         agent_ids: Vec<String>,
         ollama_url: &str,
         timeout_seconds: u64,
+        auth: Option<(String, String)>,
     ) -> Result<String, String> {
         use tokio::time::{timeout, Duration};
 
@@ -358,10 +360,11 @@ impl CouncilSessionManager {
             let question = question.clone();
             let ollama_url = ollama_url.to_string();
             let self_clone = self.clone();
+            let auth_clone = auth.clone();
 
             let handle = tokio::spawn(async move {
                 self_clone
-                    .gather_agent_response(&session_id, &agent, &question, &ollama_url)
+                    .gather_agent_response(&session_id, &agent, &question, &ollama_url, auth_clone)
                     .await
             });
 
@@ -436,12 +439,14 @@ impl CouncilSessionManager {
         agent: &Agent,
         question: &str,
         ollama_url: &str,
+        auth: Option<(String, String)>,
     ) -> Result<(), String> {
         // Build prompt with agent's system context
         let prompt = agent.build_prompt(question, None);
 
         // Call Ollama API
-        let response = crate::ollama::ask_ollama(ollama_url, &agent.model, prompt).await?;
+        let auth_ref = auth.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
+        let response = crate::ollama::ask_ollama_with_auth(ollama_url, &agent.model, prompt, auth_ref).await?;
 
         // Add response to session
         self.add_response(
@@ -741,6 +746,7 @@ mod tests {
                 pool,
                 vec![agent1_id, agent2_id],
                 "http://localhost:11434", // Won't actually connect in unit tests
+                None,
             )
             .await;
 

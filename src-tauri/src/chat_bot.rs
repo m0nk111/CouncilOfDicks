@@ -150,15 +150,21 @@ impl ChatBot {
     }
 
     async fn queue_round_robin_response(&mut self, message: Message) {
+        self.app_state.log_debug("chat_bot", "🔄 Initiating round robin selection");
+        
         let agents = self.agent_pool.list_agents().await;
         if agents.is_empty() {
+            self.app_state.log_warn("chat_bot", "⚠️ No agents available for round robin");
             return;
         }
 
         let active_agents: Vec<Agent> = agents.into_iter().filter(|a| a.active).collect();
         if active_agents.is_empty() {
+            self.app_state.log_warn("chat_bot", "⚠️ No active agents found");
             return;
         }
+
+        self.app_state.log_debug("chat_bot", &format!("Found {} active agents", active_agents.len()));
 
         // Pick next agents (round robin)
         let mut selected_agents = Vec::new();
@@ -166,7 +172,9 @@ impl ChatBot {
             if self.next_agent_index >= active_agents.len() {
                 self.next_agent_index = 0;
             }
-            selected_agents.push(active_agents[self.next_agent_index].clone());
+            let agent = active_agents[self.next_agent_index].clone();
+            self.app_state.log_debug("chat_bot", &format!("Selected agent: {}", agent.name));
+            selected_agents.push(agent);
             self.next_agent_index += 1;
         }
 
@@ -260,11 +268,17 @@ impl ChatBot {
             &format!("→ {}:{}", config.ollama_url, agent.model),
         );
 
+        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
+            Some((u.as_str(), p.as_str()))
+        } else {
+            None
+        };
+
         match ollama::ask_ollama_with_auth(
             &config.ollama_url,
             &agent.model,
             prompt,
-            Some(("CouncilOfDicks", "")),
+            auth,
         )
         .await
         {

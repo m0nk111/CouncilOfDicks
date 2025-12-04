@@ -23,6 +23,7 @@ pub mod reputation;
 pub mod state;
 pub mod web_server;
 pub mod topic_manager;
+pub mod constitution;
 
 #[cfg(test)]
 mod tests;
@@ -35,6 +36,36 @@ use providers::AIProvider;
 use reputation::reputation_get;
 use state::AppState;
 use topic_manager::{topic_get_status, topic_set, topic_stop, topic_history};
+
+#[tauri::command]
+fn get_constitution(state: tauri::State<'_, AppState>) -> String {
+    state.constitution_manager.get_content()
+}
+
+#[tauri::command]
+async fn set_constitution(content: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    // Update local
+    state.constitution_manager.update_content(content.clone())?;
+
+    // Broadcast to network
+    let msg = crate::protocol::CouncilMessage::ConstitutionUpdate {
+        content,
+        signature: "TODO_SIGNATURE".to_string(), // TODO: Sign with admin key
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    };
+
+    // Best effort broadcast
+    if let Err(e) = state.p2p_manager.publish("council", msg).await {
+        state.log_warn("constitution", &format!("Failed to broadcast update: {}", e));
+    } else {
+        state.log_success("constitution", "Broadcasted constitution update");
+    }
+
+    Ok(())
+}
 
 // Tauri commands
 #[tauri::command]
@@ -65,7 +96,7 @@ async fn ask_ollama(question: String, state: tauri::State<'_, AppState>) -> Resu
         question
     );
 
-    let result = ollama::ask_ollama(&config.ollama_url, &config.ollama_model, tcod_prompt).await;
+    let result = ollama::ask_ollama_internal(&state, config.ollama_model.clone(), tcod_prompt).await;
 
     // Record result and sign response
     match &result {
@@ -104,10 +135,30 @@ fn get_config(state: tauri::State<'_, AppState>) -> AppConfig {
 }
 
 #[tauri::command]
+fn save_config(config: AppConfig, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.log_info("save_config", "Saving configuration");
+    
+    // Update in-memory state
+    state.update_config(|c| {
+        *c = config.clone();
+    });
+    
+    // Persist to disk
+    config.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn set_debug(enabled: bool, state: tauri::State<'_, AppState>) {
     state.update_config(|config| {
         config.debug_enabled = enabled;
     });
+    
+    // Persist to disk
+    let config = state.get_config();
+    if let Err(e) = config.save() {
+        state.log_error("set_debug", &format!("Failed to save config: {}", e));
+    }
+
     state.logger.set_debug_enabled(enabled);
     state.log_info(
         "set_debug",
@@ -186,6 +237,12 @@ async fn council_create_session_with_agents(
     );
 
     let config = state.get_config();
+    let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
+        Some((u.clone(), p.clone()))
+    } else {
+        None
+    };
+
     let session_id = state
         .council_manager
         .create_session_with_agents(
@@ -193,6 +250,7 @@ async fn council_create_session_with_agents(
             state.agent_pool.clone(),
             agent_ids,
             &config.ollama_url,
+            auth,
         )
         .await?;
 
@@ -1012,11 +1070,10 @@ async fn provider_generate_username(
 async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, String> {
     let config = state.get_config();
     let model = config.ollama_model.clone();
-    let url = config.ollama_url.clone();
 
     let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
 
-    ollama::ask_ollama(&url, &model, prompt).await.map(|q| q.trim().to_string())
+    ollama::ask_ollama_internal(&state, model, prompt).await.map(|q| q.trim().to_string())
 }
 
 #[tauri::command]
@@ -1024,6 +1081,14 @@ fn set_user_handle(handle: String, state: tauri::State<'_, AppState>) -> Result<
     state.update_config(|config| {
         config.user_handle = handle.clone();
     });
+    
+    // Persist to disk
+    let config = state.get_config();
+    if let Err(e) = config.save() {
+        state.log_error("set_user_handle", &format!("Failed to save config: {}", e));
+        return Err(e.to_string());
+    }
+
     state.log_info("set_user_handle", &format!("🔧 User handle updated to: {}", handle));
     Ok(())
 }
@@ -1041,6 +1106,9 @@ pub fn run() {
             ask_ollama,
             generate_question,
             get_config,
+            save_config,
+            get_constitution,
+            set_constitution,
             set_user_handle,
             set_debug,
             get_metrics,
@@ -1171,7 +1239,7 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     println!("╚════════════════════════════════════════╝");
 
     // Initialize app state
-    let state = AppState::new();
+    let state = AppState::initialize().await;
     let config = state.get_config();
 
     println!("✅ App state initialized");

@@ -6,25 +6,31 @@ use std::path::PathBuf;
 pub struct AppConfig {
     pub ollama_url: String,
     pub ollama_model: String,
+    pub ollama_username: Option<String>,
+    pub ollama_password: Option<String>,
     pub debug_enabled: bool,
     pub initial_topic: Option<String>,
     pub topic_interval: u64,
     pub p2p_port: u16,
     pub bootstrap_peers: Vec<String>,
     pub user_handle: String,
+    pub question_generation_prompt: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             ollama_url: "http://192.168.1.5:11434".to_string(),
-            ollama_model: "mistral:7b".to_string(),
+            ollama_model: "qwen3-coder-30b-q4km-32k:latest".to_string(),
+            ollama_username: None,
+            ollama_password: None,
             debug_enabled: true,
             initial_topic: Some("The Future of AI".to_string()),
             topic_interval: 300,
             p2p_port: 9000,
             bootstrap_peers: vec![],
             user_handle: "human_user".to_string(),
+            question_generation_prompt: "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string(),
         }
     }
 }

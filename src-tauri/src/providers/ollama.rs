@@ -43,6 +43,7 @@ pub struct OllamaProvider {
     embedding_model: String,
     timeout: Duration,
     logger: Arc<Logger>,
+    auth: Option<(String, String)>,
 }
 
 impl OllamaProvider {
@@ -59,7 +60,15 @@ impl OllamaProvider {
             embedding_model: "nomic-embed-text".to_string(),
             timeout: Duration::from_secs(120),
             logger,
+            auth: None,
         }
+    }
+
+    pub fn with_auth(mut self, username: Option<String>, password: Option<String>) -> Self {
+        if let (Some(u), Some(p)) = (username, password) {
+            self.auth = Some((u, p));
+        }
+        self
     }
 
     #[allow(dead_code)]
@@ -111,10 +120,13 @@ impl AIProvider for OllamaProvider {
             .build()
             .map_err(|e| ProviderError::InternalError(e.to_string()))?;
 
-        let response = client
-            .post(&endpoint)
-            .basic_auth("CouncilOfDicks", Some(""))
-            .json(&ollama_request)
+        let mut request_builder = client.post(&endpoint).json(&ollama_request);
+
+        if let Some((username, password)) = &self.auth {
+            request_builder = request_builder.basic_auth(username, Some(password));
+        }
+
+        let response = request_builder
             .send()
             .await
             .map_err(|e| ProviderError::NetworkError(e.to_string()))?;
@@ -164,9 +176,13 @@ impl AIProvider for OllamaProvider {
             .build()
             .map_err(|e| ProviderError::InternalError(e.to_string()))?;
 
-        let response = client
-            .post(&endpoint)
-            .json(&embed_request)
+        let mut request_builder = client.post(&endpoint).json(&embed_request);
+
+        if let Some((username, password)) = &self.auth {
+            request_builder = request_builder.basic_auth(username, Some(password));
+        }
+
+        let response = request_builder
             .send()
             .await
             .map_err(|e| ProviderError::NetworkError(e.to_string()))?;

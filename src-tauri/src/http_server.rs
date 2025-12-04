@@ -71,9 +71,20 @@ impl HttpServer {
             // Ollama API
             .route("/api/ollama/ask", post(ollama_ask))
             // Config API
-            .route("/api/config", get(config_get))
+            .route("/api/config", get(config_get).post(config_save))
+            .route("/api/user/handle", post(user_handle_set))
+            .route("/api/constitution", get(constitution_get))
             // Council API
             .route("/api/council/generate_question", post(generate_question))
+            .route("/api/council/session", post(council_session_get))
+            .route("/api/council/sessions", get(council_sessions_list))
+            // PoHV API
+            .route("/api/pohv/status", get(pohv_status))
+            // Agent API
+            .route("/api/agents", get(agent_list))
+            // Chat API
+            .route("/api/chat/message", post(chat_message_send))
+            .route("/api/chat/messages", post(chat_messages_get))
             // WebSocket for real-time chat
             .route("/ws/chat", get(websocket_handler))
             // Static files (for web UI)
@@ -115,6 +126,46 @@ impl IntoResponse for ApiError {
             status,
             Json(serde_json::json!({
                 "error": message
+            })),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ApiResponse<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
+}
+
+impl<T> ApiResponse<T> {
+    fn success(data: T) -> Self {
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
+    }
+
+    fn error(msg: &str) -> Self {
+        Self {
+            success: false,
+            data: None,
+            error: Some(msg.to_string()),
+        }
+    }
+}
+
+struct AppError(String);
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "success": false,
+                "error": self.0
             })),
         )
             .into_response()
@@ -165,13 +216,54 @@ async fn ollama_ask(
     Ok(Json(OllamaAskResponse { response }))
 }
 
-async fn config_get(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
+async fn config_get(State(state): State<Arc<AppState>>) -> Json<ApiResponse<crate::config::AppConfig>> {
+    Json(ApiResponse::success(state.get_config()))
+}
+
+#[derive(Deserialize)]
+struct ConfigSaveRequest {
+    config: crate::config::AppConfig,
+}
+
+async fn config_save(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ConfigSaveRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    state.update_config(|c| {
+        *c = payload.config.clone();
+    });
+    
+    // Persist to disk
+    payload.config.save().map_err(|e| AppError(e))?;
+    
+    state.log_info("http_server", "Configuration saved via HTTP API");
+    Ok(Json(ApiResponse::success(())))
+}
+
+#[derive(Deserialize)]
+struct UserHandleRequest {
+    handle: String,
+}
+
+async fn user_handle_set(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UserHandleRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    state.update_config(|c| {
+        c.user_handle = payload.handle.clone();
+    });
+    
+    // Persist to disk
     let config = state.get_config();
-    Json(ConfigResponse {
-        ollama_url: config.ollama_url.clone(),
-        ollama_model: config.ollama_model.clone(),
-        debug_enabled: config.debug_enabled,
-    })
+    config.save().map_err(|e| AppError(e))?;
+    
+    state.log_info("http_server", &format!("User handle updated to: {}", payload.handle));
+    Ok(Json(ApiResponse::success(())))
+}
+
+async fn constitution_get(State(state): State<Arc<AppState>>) -> Json<ApiResponse<String>> {
+    let content = state.constitution_manager.get_content();
+    Json(ApiResponse::success(content))
 }
 
 async fn generate_question(
@@ -187,6 +279,95 @@ async fn generate_question(
         Ok(question) => Ok(Json(question.trim().to_string())),
         Err(e) => Err(ApiError::InternalError(format!("Failed to generate question: {}", e))),
     }
+}
+
+#[derive(Deserialize)]
+struct CouncilSessionRequest {
+    sessionId: String,
+}
+
+async fn council_session_get(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CouncilSessionRequest>,
+) -> Result<Json<ApiResponse<crate::protocol::CouncilSession>>, ApiError> {
+    let session = state.council_manager.get_session(&payload.sessionId)
+        .await
+        .ok_or_else(|| ApiError::BadRequest("Session not found".to_string()))?;
+    Ok(Json(ApiResponse::success(session)))
+}
+
+#[derive(Serialize)]
+struct CouncilSessionsListResponse {
+    sessions: Vec<crate::protocol::CouncilSession>,
+}
+
+async fn council_sessions_list(
+    State(state): State<Arc<AppState>>,
+) -> Json<ApiResponse<CouncilSessionsListResponse>> {
+    let sessions = state.council_manager.list_sessions().await;
+    Json(ApiResponse::success(CouncilSessionsListResponse { sessions }))
+}
+
+async fn pohv_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<ApiResponse<crate::pohv::PoHVState>> {
+    let status = state.pohv_system.get_state();
+    Json(ApiResponse::success(status))
+}
+
+async fn agent_list(
+    State(state): State<Arc<AppState>>,
+) -> Json<ApiResponse<Vec<crate::agents::Agent>>> {
+    let agents = state.agent_pool.list_agents().await;
+    Json(ApiResponse::success(agents))
+}
+
+#[derive(Deserialize)]
+struct ChatMessagePayload {
+    content: String,
+}
+
+async fn chat_message_send(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ChatMessagePayload>,
+) -> impl IntoResponse {
+    let msg = crate::chat::Message {
+        id: uuid::Uuid::new_v4().to_string(),
+        channel: crate::chat::ChannelType::General,
+        author: state.get_config().user_handle,
+        author_type: crate::chat::AuthorType::Human,
+        content: payload.content,
+        timestamp: chrono::Utc::now(),
+        signature: None,
+        reply_to: None,
+        reactions: vec![],
+    };
+
+    // Add to channel manager
+    if let Err(e) = state.channel_manager.send_message(msg.clone()) {
+        return Json(ApiResponse::error(&format!("Failed to send message: {}", e)));
+    }
+
+    // Broadcast to WS
+    let _ = state.websocket_broadcast.send(msg.clone());
+    
+    Json(ApiResponse::success(msg))
+}
+
+#[derive(Deserialize)]
+struct ChatMessagesRequest {
+    channel: crate::chat::ChannelType,
+    limit: usize,
+    offset: usize,
+}
+
+async fn chat_messages_get(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ChatMessagesRequest>,
+) -> Result<Json<ApiResponse<Vec<crate::chat::Message>>>, ApiError> {
+    let messages = state.channel_manager.get_messages(payload.channel, payload.limit, payload.offset)
+        .map_err(|e| ApiError::InternalError(e))?;
+    Ok(Json(ApiResponse::success(messages)))
 }
 
 async fn static_handler() -> impl IntoResponse {

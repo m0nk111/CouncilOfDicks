@@ -66,6 +66,16 @@ pub struct TopicHistoryRequest {
     pub limit: Option<usize>,
 }
 
+#[derive(Deserialize)]
+pub struct SetHandleRequest {
+    pub handle: String,
+}
+
+#[derive(Serialize)]
+pub struct CouncilSessionsListResponse {
+    pub sessions: Vec<crate::protocol::CouncilSession>,
+}
+
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
@@ -105,6 +115,7 @@ async fn get_config(State(state): State<WebState>) -> Response {
             "ollama_url": config.ollama_url,
             "ollama_model": config.ollama_model,
             "debug_enabled": config.debug_enabled,
+            "user_handle": config.user_handle,
         }))),
     )
         .into_response()
@@ -172,13 +183,7 @@ async fn delete_agent(State(state): State<WebState>, Json(payload): Json<Value>)
 // Council endpoints
 async fn list_council_sessions(State(state): State<WebState>) -> Response {
     let sessions = state.council_manager.list_sessions().await;
-    (
-        StatusCode::OK,
-        Json(ApiResponse::ok(serde_json::json!({
-            "sessions": sessions
-        }))),
-    )
-        .into_response()
+    (StatusCode::OK, Json(ApiResponse::ok(CouncilSessionsListResponse { sessions }))).into_response()
 }
 
 async fn get_council_session(
@@ -193,13 +198,18 @@ async fn create_council_session(
     State(state): State<WebState>,
     Json(req): Json<CouncilSessionRequest>,
 ) -> Response {
-    let ollama_url = {
+    let (ollama_url, auth) = {
         let config = state
             .app_state
             .config
             .lock()
             .expect("Failed to lock config");
-        config.ollama_url.clone()
+        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
+            Some((u.clone(), p.clone()))
+        } else {
+            None
+        };
+        (config.ollama_url.clone(), auth)
     };
 
     match state
@@ -209,6 +219,7 @@ async fn create_council_session(
             state.agent_pool.clone(),
             req.agent_ids,
             &ollama_url,
+            auth,
         )
         .await
     {
@@ -382,17 +393,41 @@ pub async fn generate_question(
 ) -> Result<Json<String>, StatusCode> {
     let config = state.app_state.get_config();
     let model = config.ollama_model.clone();
-    let url = config.ollama_url.clone();
 
-    let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
+    let prompt = config.question_generation_prompt.clone();
 
-    match crate::ollama::ask_ollama(&url, &model, prompt).await {
+    match crate::ollama::ask_ollama_internal(&state.app_state, model, prompt).await {
         Ok(question) => Ok(Json(question.trim().to_string())),
         Err(e) => {
             eprintln!("❌ Failed to generate question: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// Set User Handle endpoint
+pub async fn set_user_handle(
+    State(state): State<WebState>,
+    Json(req): Json<SetHandleRequest>,
+) -> Response {
+    state.app_state.update_config(|config| {
+        config.user_handle = req.handle.clone();
+    });
+
+    // Persist to disk
+    let config = state.app_state.get_config();
+    if let Err(e) = config.save() {
+        state
+            .app_state
+            .log_error("set_user_handle", &format!("Failed to save config: {}", e));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::err(e.to_string())),
+        )
+            .into_response();
+    }
+
+    (StatusCode::OK, Json(ApiResponse::ok(()))).into_response()
 }
 
 // Build the web server router
@@ -421,6 +456,7 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/topic/history", get(get_topic_history))
         .route("/api/chat/status", get(get_chat_status))
         .route("/api/council/generate_question", post(generate_question))
+        .route("/api/user/handle", post(set_user_handle))
         .layer(cors)
         .with_state(state)
 }
