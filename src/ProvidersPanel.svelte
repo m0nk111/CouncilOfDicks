@@ -7,6 +7,8 @@
     providerTestConnection,
     providerGenerateUsername,
     getConfig,
+    saveConfig,
+    isTauriEnvironment,
     type ProviderConfig,
     type ProviderType,
     type ProviderHealth,
@@ -16,10 +18,14 @@
   let showAddForm = false;
   let testingProvider: string | null = null;
   let providerHealth: Record<string, ProviderHealth> = {};
+  let isTauri = false;
+  let currentConfig: any = {};
   
   // Global config
   let globalOllamaUrl = "http://192.168.1.5:11434";
   let globalOllamaModel = "qwen2.5-coder:7b";
+  let globalOllamaUsername = "";
+  let globalOllamaPassword = "";
   let globalDebugEnabled = false;
 
   // Form state
@@ -49,11 +55,32 @@
   async function loadGlobalConfig() {
     try {
       const config = await getConfig();
+      currentConfig = config;
       globalOllamaUrl = config.ollama_url;
       globalOllamaModel = config.ollama_model;
+      globalOllamaUsername = config.ollama_username || "";
+      globalOllamaPassword = config.ollama_password || "";
       globalDebugEnabled = config.debug_enabled;
     } catch (error) {
       console.error("Failed to load config:", error);
+    }
+  }
+
+  async function handleSaveGlobalConfig() {
+    try {
+      const newConfig = {
+        ...currentConfig,
+        ollama_url: globalOllamaUrl,
+        ollama_model: globalOllamaModel,
+        ollama_username: globalOllamaUsername || null,
+        ollama_password: globalOllamaPassword || null,
+        debug_enabled: globalDebugEnabled,
+      };
+      await saveConfig(newConfig);
+      alert("Configuration saved!");
+      currentConfig = newConfig;
+    } catch (error) {
+      alert(`Failed to save config: ${error}`);
     }
   }
 
@@ -66,6 +93,7 @@
   }
 
   onMount(() => {
+    isTauri = isTauriEnvironment();
     loadGlobalConfig();
     loadProviders();
   });
@@ -202,7 +230,12 @@
 
   <!-- Global Ollama Configuration -->
   <div class="global-config">
-    <h3>🌐 Global Ollama Configuration</h3>
+    <div class="config-header">
+      <h3>🌐 Global Ollama Configuration</h3>
+      {#if isTauri}
+        <button class="btn-save" on:click={handleSaveGlobalConfig}>💾 Save Config</button>
+      {/if}
+    </div>
     <div class="config-grid">
       <div class="config-item">
         <label>Ollama Server URL</label>
@@ -210,7 +243,7 @@
           type="text" 
           bind:value={globalOllamaUrl} 
           placeholder="http://192.168.1.5:11434"
-          readonly
+          readonly={!isTauri}
         />
         <span class="config-hint">Current: {globalOllamaUrl}</span>
       </div>
@@ -220,21 +253,41 @@
           type="text" 
           bind:value={globalOllamaModel} 
           placeholder="qwen2.5-coder:7b"
-          readonly
+          readonly={!isTauri}
         />
         <span class="config-hint">Current: {globalOllamaModel}</span>
+      </div>
+      <div class="config-item">
+        <label>Username (Optional)</label>
+        <input 
+          type="text" 
+          bind:value={globalOllamaUsername} 
+          placeholder="Optional basic auth username"
+          readonly={!isTauri}
+        />
+      </div>
+      <div class="config-item">
+        <label>Password (Optional)</label>
+        <input 
+          type="password" 
+          bind:value={globalOllamaPassword} 
+          placeholder="Optional basic auth password"
+          readonly={!isTauri}
+        />
       </div>
       <div class="config-item">
         <label>Debug Mode</label>
         <div class="toggle-wrapper">
           <span>{globalDebugEnabled ? "Enabled" : "Disabled"}</span>
-          <span class="config-hint">Cannot be changed from web UI</span>
+          <span class="config-hint">{isTauri ? "Can be changed via debug toggle" : "Cannot be changed from web UI"}</span>
         </div>
       </div>
     </div>
-    <p class="config-note">
-      ℹ️ Global config is read-only in web mode. To change, edit config file or use Tauri app.
-    </p>
+    {#if !isTauri}
+      <p class="config-note">
+        ℹ️ Global config is read-only in web mode. To change, edit config file or use Tauri app.
+      </p>
+    {/if}
   </div>
 
   {#if showAddForm}
@@ -787,31 +840,26 @@
   .provider-actions {
     display: flex;
     gap: 10px;
-    margin-top: 15px;
   }
 
-  .btn-test,
-  .btn-remove {
-    flex: 1;
-    padding: 8px;
+  .config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .btn-save {
+    background: #4caf50;
+    color: white;
     border: none;
+    padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
   }
 
-  .btn-test {
-    background: #2196f3;
-    color: white;
-  }
-
-  .btn-test:disabled {
-    background: #666;
-    cursor: not-allowed;
-  }
-
-  .btn-remove {
-    background: #f44336;
-    color: white;
+  .btn-save:hover {
+    background: #45a049;
   }
 </style>

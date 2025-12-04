@@ -529,6 +529,7 @@
 
     <div class="sidebar-footer">
       <button class="council-btn" on:click={openCouncil} title="Council Management">🏛️ Council</button>
+      <button class="constitution-btn" on:click={() => dispatch("showConstitution")} title="Constitution">📜 Constitution</button>
       <button class="settings-btn" on:click={openSettings} title="Settings">⚙️ Settings</button>
     </div>
   </div>
@@ -908,7 +909,8 @@
   }
 
   .council-btn,
-  .settings-btn {
+  .settings-btn,
+  .constitution-btn {
     width: 100%;
     padding: 0.5rem;
     background: #0f3460;
@@ -929,6 +931,19 @@
   .council-btn:hover {
     background: linear-gradient(135deg, #00d4ff40 0%, #0088cc40 100%);
     border-color: #00d4ff;
+    color: #fff;
+  }
+
+  .constitution-btn {
+    background: linear-gradient(135deg, #ffd70020 0%, #ffb30020 100%);
+    border: 1px solid #ffd70040;
+    color: #ffd700;
+    font-weight: 500;
+  }
+
+  .constitution-btn:hover {
+    background: linear-gradient(135deg, #ffd70040 0%, #ffb30040 100%);
+    border-color: #ffd700;
     color: #fff;
   }
 
@@ -1197,7 +1212,7 @@
 
   /* Right Sidebar - Members/Participants */
   .members-sidebar {
-    width: 240px;
+    width: 350px;
     background: #16213e;
     border-left: 1px solid #0f3460;
     display: flex;

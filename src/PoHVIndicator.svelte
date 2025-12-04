@@ -68,7 +68,7 @@
 <style>
   .pohv-indicator {
     position: fixed;
-    bottom: 20px;
+    bottom: 80px; /* Moved up to avoid being cut off or overlapping with input */
     right: 20px;
     background: rgba(0, 0, 0, 0.8);
     border: 1px solid #333;

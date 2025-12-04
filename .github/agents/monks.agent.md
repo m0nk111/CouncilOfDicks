@@ -268,6 +268,7 @@ When implementing any feature:
 - **Testing Rule**: ALWAYS test solutions before declaring them fixed
 - **Keep Responses Short**: No excessive emojis or verbose explanations
 - **Never use `cat << 'EOF'`**: Create proper files instead of pasting long scripts in terminal
+- **Tools > Terminal**: Prioritize using specific tools (read_file, replace_string_in_file) over raw terminal commands
 
 ### Git Commit Standards
 - **Per-File Commit Comments**: When making changes to individual files, always create specific git commit messages that describe the exact changes made to that file

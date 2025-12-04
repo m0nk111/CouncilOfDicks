@@ -265,6 +265,10 @@ export async function startCouncil(question: string): Promise<string> {
 - **Reputation System**: Should use issues (complex feature)
 - **Bug fixes**: Direct commits for trivial fixes, issues for complex bugs
 
+### Task Management
+- **Use Todo Tool**: When the user provides multiple instructions, tasks, or feedback points in a single prompt, ALWAYS use the `manage_todo_list` tool to create a structured plan before starting work.
+- **Update Frequently**: Mark tasks as `in-progress` when starting and `completed` when finished.
+
 ## Documentation Maintenance (IMPORTANT)
 
 When implementing new features, **always update documentation**:

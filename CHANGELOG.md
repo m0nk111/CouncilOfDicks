@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compilation**: Fixed CouncilSession import path (protocol:: not council::)
 - **Compilation**: Fixed agent.enabled_tools field name (was incorrectly `tools`)
 
+### Fixed (2025-12-04) - Web Mode & Chat Logic
+- **Chat Bot**: Re-enabled "Round Robin" logic so agents automatically respond to general messages in `#general` without needing direct mentions.
+- **Configuration**: Moved the "Generate Question" prompt from hardcoded Rust to `config/app_config.json` (`question_generation_prompt`), allowing user customization.
+- **User Handle**: Fixed a bug where the user handle would reset after a page reload in Web Mode (backend now correctly returns the handle in `/api/config`).
+- **Web Mode API**: Fixed API adapter to correctly target port 8080 when running in a browser environment.
+
 ### In Progress
 - CORS configuration for production (headers, origins whitelist)
 - API key authentication & JWT token support

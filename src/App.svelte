@@ -4,10 +4,12 @@
   import CouncilPanel from "./CouncilPanel.svelte";
   import PoHVIndicator from "./PoHVIndicator.svelte";
   import TopicControl from "./TopicControl.svelte";
+  import ConstitutionPanel from "./ConstitutionPanel.svelte";
 
   let showSettings = false;
   let showCouncil = false;
   let showTopic = false;
+  let showConstitution = false;
 </script>
 
 {#if showSettings}
@@ -49,11 +51,25 @@
   </div>
 {/if}
 
+{#if showConstitution}
+  <!-- Constitution Modal -->
+  <div class="modal-overlay" on:click={() => (showConstitution = false)} role="dialog">
+    <div class="modal-content modal-wide" on:click|stopPropagation role="document">
+      <div class="modal-header">
+        <h2>📜 Constitution</h2>
+        <button class="close-btn" on:click={() => (showConstitution = false)}>✕</button>
+      </div>
+      <ConstitutionPanel />
+    </div>
+  </div>
+{/if}
+
 <!-- Main Chat Interface -->
 <ChatInterface 
   on:showSettings={() => (showSettings = true)}
   on:showCouncil={() => (showCouncil = true)}
   on:showTopic={() => (showTopic = true)}
+  on:showConstitution={() => (showConstitution = true)}
 />
 
 <PoHVIndicator />

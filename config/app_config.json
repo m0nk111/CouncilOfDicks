@@ -1,0 +1,13 @@
+{
+  "ollama_url": "http://127.0.0.1:11434",
+  "ollama_model": "qwen3-coder-30b-q4km-32k:latest",
+  "ollama_username": "council-of-dicks",
+  "ollama_password": "ignored",
+  "debug_enabled": true,
+  "initial_topic": "The Future of AI",
+  "topic_interval": 300,
+  "p2p_port": 9000,
+  "bootstrap_peers": [],
+  "user_handle": "m0nk111",
+  "question_generation_prompt": "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself."
+}

@@ -28,6 +28,8 @@ const API_BASE_URL = window.location.hostname === "localhost"
 export interface AppConfig {
   ollama_url: string;
   ollama_model: string;
+  ollama_username?: string;
+  ollama_password?: string;
   debug_enabled: boolean;
   user_handle?: string;
 }
@@ -130,6 +132,22 @@ export async function askCouncil(question: string): Promise<string> {
 
 export async function getConfig(): Promise<AppConfig> {
   return await apiCall<AppConfig>("get_config", "GET /api/config");
+}
+
+export async function saveConfig(config: AppConfig): Promise<void> {
+  return await apiCall<void>("save_config", "POST /api/config", { config });
+}
+
+export async function getConstitution(): Promise<string> {
+  return await apiCall<string>("get_constitution", "GET /api/constitution");
+}
+
+export async function setConstitution(content: string): Promise<void> {
+  if (isTauriEnvironment()) {
+    return await tauriInvoke("set_constitution", { content });
+  } else {
+    console.warn("setConstitution not available in web mode");
+  }
 }
 
 export async function setDebug(enabled: boolean): Promise<void> {
@@ -641,9 +659,5 @@ export async function councilGenerateQuestion(): Promise<string> {
 }
 
 export async function setUserHandle(handle: string): Promise<void> {
-  if (isTauriEnvironment()) {
-    return await tauriInvoke("set_user_handle", { handle });
-  } else {
-    console.warn("setUserHandle not available in web mode");
-  }
+  return await apiCall<void>("set_user_handle", "POST /api/user/handle", { handle });
 }

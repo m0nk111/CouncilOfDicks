@@ -21,9 +21,8 @@ async function getTauriInvoke() {
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     // Use current origin in production, localhost:8080 in development
-    return window.location.hostname === 'localhost' 
-      ? 'http://localhost:8080'
-      : `${window.location.protocol}//${window.location.hostname}:8080`;
+    // If we are on a non-standard port (like 5175), assume backend is on 8080 on the same host
+    return `${window.location.protocol}//${window.location.hostname}:8080`;
   }
   return 'http://localhost:8080';
 }
