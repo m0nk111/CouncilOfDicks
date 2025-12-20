@@ -241,25 +241,32 @@ impl ChatBot {
                 let mut status = self.app_state.chat_bot_status.lock().unwrap();
                 status.queue.pop_front(); // Remove from public queue
                 status.current_thinking = Some(agent.name.clone());
-                status.current_reasoning = Some("Analyzing context...".to_string());
+                status.current_reasoning = Some("Checking relevance...".to_string());
             }
 
             let config = self.app_state.get_config();
             
-            // Simulate reasoning steps (for UI effect)
-            let reasoning_steps = [
-                "Reading message...",
-                "Consulting knowledge bank...",
-                "Formulating response...",
-                "Drafting reply...",
-            ];
-
-            for step in reasoning_steps {
+            // First check if this agent has something relevant to add
+            let should_respond = self.should_respond(&agent, &msg, &context, &config).await;
+            
+            if !should_respond {
+                self.app_state.log_info(
+                    "chat_bot",
+                    &format!("⏭️ {} has nothing to add, skipping", agent.name),
+                );
+                // Clear status and move on
                 {
                     let mut status = self.app_state.chat_bot_status.lock().unwrap();
-                    status.current_reasoning = Some(step.to_string());
+                    status.current_thinking = None;
+                    status.current_reasoning = None;
                 }
-                sleep(Duration::from_millis(500)).await;
+                return Ok(());
+            }
+            
+            // Update status for actual response generation
+            {
+                let mut status = self.app_state.chat_bot_status.lock().unwrap();
+                status.current_reasoning = Some("Formulating response...".to_string());
             }
 
             // Execute response
@@ -276,6 +283,68 @@ impl ChatBot {
         }
 
         Ok(())
+    }
+
+    /// Ask the agent if they have something relevant to contribute
+    async fn should_respond(
+        &self,
+        agent: &Agent,
+        msg: &Message,
+        context: &str,
+        config: &crate::config::AppConfig,
+    ) -> bool {
+        let check_prompt = format!(
+            r#"You are {} - {}
+
+Recent conversation:
+{}
+
+Latest message from {}: "{}"
+
+QUESTION: Do you have a unique, valuable perspective to add to this discussion that hasn't been covered yet?
+
+Answer ONLY "YES" or "NO" (nothing else).
+- YES = You have a distinct insight, counterpoint, or expertise to share
+- NO = The topic is outside your expertise, already well-covered, or you'd just be repeating others"#,
+            agent.name,
+            agent.system_prompt.lines().next().unwrap_or("An AI assistant"),
+            if context.is_empty() { "(no context)" } else { context },
+            msg.author,
+            msg.content
+        );
+
+        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
+            Some((u.as_str(), p.as_str()))
+        } else {
+            None
+        };
+
+        // Use a smaller/faster model for the check if available, otherwise use agent's model
+        let check_model = &agent.model;
+        
+        match ollama::ask_ollama_with_auth(
+            &config.ollama_url,
+            check_model,
+            check_prompt,
+            None,
+            auth,
+        )
+        .await
+        {
+            Ok(response) => {
+                let answer = response.trim().to_uppercase();
+                let should = answer.starts_with("YES");
+                self.app_state.log_debug(
+                    "chat_bot",
+                    &format!("🤔 {} relevance check: {} → {}", agent.name, answer, if should { "will respond" } else { "skipping" }),
+                );
+                should
+            }
+            Err(e) => {
+                self.app_state.log_warn("chat_bot", &format!("⚠️ Relevance check failed for {}: {}", agent.name, e));
+                true // Default to responding if check fails
+            }
+        }
     }
 
     async fn respond_with_agent(
