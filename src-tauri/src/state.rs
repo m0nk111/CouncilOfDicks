@@ -71,8 +71,15 @@ impl AppState {
         // Initialize knowledge bank
         let kb_path = data_dir.join("knowledge_bank.sqlite");
         let kb_url = format!("sqlite://{}", kb_path.to_string_lossy());
+        
+        // Build auth tuple if both username and password are set
+        let ollama_auth = match (&base_config.ollama_username, &base_config.ollama_password) {
+            (Some(u), Some(p)) => Some((u.clone(), p.clone())),
+            _ => None,
+        };
+        
         let knowledge_bank =
-            match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone()).await
+            match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone(), ollama_auth).await
             {
                 Ok(bank) => Some(Arc::new(bank)),
                 Err(e) => {

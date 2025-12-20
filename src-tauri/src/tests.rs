@@ -61,6 +61,7 @@ mod tests {
             "sqlite::memory:",
             logger,
             "http://localhost:11434".to_string(),
+            None, // No auth for tests
         )
         .await
         .expect("Failed to create KnowledgeBank");

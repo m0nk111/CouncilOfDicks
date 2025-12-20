@@ -54,6 +54,7 @@ pub struct KnowledgeBank {
     pool: SqlitePool,
     logger: Arc<Logger>,
     ollama_url: String,
+    ollama_auth: Option<(String, String)>,
     embedding_model: String,
 }
 
@@ -63,6 +64,7 @@ impl KnowledgeBank {
         db_path: &str,
         logger: Arc<Logger>,
         ollama_url: String,
+        ollama_auth: Option<(String, String)>,
     ) -> Result<Self, String> {
         logger.log(
             LogLevel::Info,
@@ -78,6 +80,7 @@ impl KnowledgeBank {
             pool,
             logger: logger.clone(),
             ollama_url,
+            ollama_auth,
             embedding_model: "nomic-embed-text".to_string(),
         };
 
@@ -437,9 +440,14 @@ impl KnowledgeBank {
             "prompt": text
         });
 
-        let res = client
-            .post(&url)
-            .json(&payload)
+        let mut request = client.post(&url).json(&payload);
+        
+        // Add basic auth if configured
+        if let Some((username, password)) = &self.ollama_auth {
+            request = request.basic_auth(username, Some(password));
+        }
+
+        let res = request
             .send()
             .await
             .map_err(|e| format!("Failed to call Ollama: {}", e))?;
@@ -1167,6 +1175,7 @@ mod tests {
             "sqlite::memory:",
             logger,
             "http://localhost:11434".to_string(),
+            None, // No auth for tests
         )
         .await;
 

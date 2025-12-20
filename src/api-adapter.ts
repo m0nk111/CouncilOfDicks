@@ -19,12 +19,10 @@ async function getTauriInvoke() {
 
 // Get API base URL for web mode
 function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    // Use current origin in production, localhost:8080 in development
-    // If we are on a non-standard port (like 5175), assume backend is on 8080 on the same host
-    return `${window.location.protocol}//${window.location.hostname}:8080`;
-  }
-  return 'http://localhost:8080';
+  // In dev mode, Vite proxies /api/* to the backend on port 8080
+  // So we use same-origin (empty string) to go through the proxy
+  // This avoids CORS issues when accessing from LAN devices
+  return '';
 }
 
 // Unified API call that works in both Tauri and web modes

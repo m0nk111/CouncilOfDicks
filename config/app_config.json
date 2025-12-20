@@ -1,5 +1,5 @@
 {
-  "ollama_url": "http://127.0.0.1:11434",
+  "ollama_url": "http://192.168.1.5:11434",
   "ollama_model": "qwen3-coder-30b-q4km-32k:latest",
   "ollama_username": "council-of-dicks",
   "ollama_password": "ignored",
