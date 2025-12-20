@@ -621,6 +621,47 @@ export async function agentUpdate(agent: Agent): Promise<void> {
   return await apiCall("agent_update", "POST /api/agents/update", { agent });
 }
 
+/**
+ * Reset an existing agent's identity - let the AI choose a new name, handle, role, and tagline
+ * The agent keeps the same provider/model but gets a fresh identity
+ */
+export async function agentResetIdentity(
+  agentId: string,
+  userHint?: string
+): Promise<{ agent: Agent; identity: AgentIdentity }> {
+  // Step 1: Get the existing agent
+  const existingAgent = await agentGet(agentId);
+  
+  // Step 2: Let the AI choose a new identity
+  const identity = await providerGenerateIdentity(
+    existingAgent.model, 
+    existingAgent.provider || "ollama", 
+    userHint
+  );
+  
+  // Step 3: Generate new system prompt based on the role
+  const systemPrompt = `You are ${identity.name}, a council member with the role of ${identity.role}. ${identity.tagline}
+
+Your job is to participate in council deliberations, bringing your unique perspective as a ${identity.role}. 
+Stay in character and provide thoughtful, substantive contributions to discussions.`;
+  
+  // Step 4: Update the agent with new identity
+  const updatedAgent: Agent = {
+    ...existingAgent,
+    name: identity.name,
+    handle: identity.handle,
+    system_prompt: systemPrompt,
+    metadata: {
+      ...existingAgent.metadata,
+      role: identity.role,
+    },
+  };
+  
+  await agentUpdate(updatedAgent);
+  
+  return { agent: updatedAgent, identity };
+}
+
 export async function agentList(): Promise<Agent[]> {
   const result = await apiCall<any>("agent_list", "GET /api/agents");
 
