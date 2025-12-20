@@ -254,6 +254,18 @@
     return participant.status;
   }
 
+  /** Get the agent role from metadata (e.g., "default_skeptic" -> "Skeptic") */
+  function getAgentRole(participant: ParticipantSummary): string | null {
+    if (participant.kind === "human") return null;
+    const role = participant.metadata?.role;
+    if (!role) return null;
+    // Format: "default_skeptic" -> "Skeptic", "openai_agent" -> "OpenAI Agent"
+    return role
+      .replace(/^default_/, "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
   function formatToolList(participant: ParticipantSummary): string {
     if (!participant.tools || participant.tools.length === 0) {
       return participant.kind === "human" ? "Manual input" : "Standard messaging";
@@ -737,7 +749,11 @@
             <div class="member-info">
               <div class="member-name">{participant.name}</div>
               <div class="member-status">
-                {participant.kind === "human" ? "Human" : "AI Agent"}
+                {#if getAgentRole(participant)}
+                  <span class="member-role">{getAgentRole(participant)}</span>
+                {:else}
+                  {participant.kind === "human" ? "Human" : "AI Agent"}
+                {/if}
                 {#if participant.model}
                   <span class="member-model-inline">• {participant.model}</span>
                 {/if}
@@ -769,7 +785,7 @@
 
               <div class="hover-row">
                 <span class="label">Role</span>
-                <span>{participant.kind === "human" ? "Human participant" : "AI agent"}</span>
+                <span>{getAgentRole(participant) || (participant.kind === "human" ? "Human participant" : "AI agent")}</span>
               </div>
 
               {#if participant.model}
@@ -1335,6 +1351,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .member-role {
+    color: #fbbf24; /* Amber color for roles */
+    font-weight: 500;
   }
 
   .message-author-group {
