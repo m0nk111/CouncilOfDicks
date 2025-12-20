@@ -20,7 +20,11 @@ pub struct Agent {
     #[serde(default)]
     pub handle: String,
 
-    /// Ollama model to use (e.g., "qwen2.5-coder:7b", "llama3:70b")
+    /// Provider type: "ollama", "openai", "openrouter", "google"
+    #[serde(default = "default_provider")]
+    pub provider: String,
+
+    /// Model to use (e.g., "qwen2.5-coder:7b", "gpt-4o", "gemini-1.5-flash")
     pub model: String,
 
     /// System prompt explaining context, role, and rules
@@ -39,6 +43,10 @@ pub struct Agent {
     pub metadata: HashMap<String, String>,
 }
 
+fn default_provider() -> String {
+    "ollama".to_string()
+}
+
 impl Agent {
     /// Create new agent with defaults
     pub fn new(name: String, model: String, system_prompt: String) -> Self {
@@ -47,6 +55,24 @@ impl Agent {
             id: Uuid::new_v4().to_string(),
             name,
             handle,
+            provider: "ollama".to_string(),
+            model,
+            system_prompt,
+            enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
+            temperature: 0.7,
+            active: true,
+            metadata: HashMap::new(),
+        }
+    }
+
+    /// Create agent with specific provider
+    pub fn with_provider(name: String, provider: String, model: String, system_prompt: String) -> Self {
+        let handle = name.to_lowercase().replace(" ", "_");
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            handle,
+            provider,
             model,
             system_prompt,
             enabled_tools: vec!["send_message".to_string(), "vote".to_string()],

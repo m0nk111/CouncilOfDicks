@@ -57,10 +57,18 @@ impl AppState {
     }
 
     pub async fn initialize() -> Self {
-        let base_config = AppConfig::load();
+        let mut base_config = AppConfig::load();
+        
+        // Load API keys from ~/.secrets/keys/ if not in config
+        base_config.load_api_keys_from_files();
+        
         let logger = Arc::new(Logger::new(false));
         logger.set_debug_enabled(base_config.debug_enabled);
         logger.info("config", &format!("Loaded configuration (handle: {})", base_config.user_handle));
+        
+        // Log available providers
+        let providers = base_config.available_providers();
+        logger.info("providers", &format!("Available providers: {:?}", providers));
 
         // Ensure data directory exists for persistence
         let data_dir = PathBuf::from("./data");

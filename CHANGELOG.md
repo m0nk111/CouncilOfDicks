@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-12-05) - Multi-Provider Support 🚀
+- **OpenAI Provider**: Full Chat Completions API support for GPT-4o, GPT-4, etc.
+  - Embeddings via `text-embedding-3-small`
+  - Proper error handling (401, 429, 404)
+- **Google Gemini Provider**: Full Gemini API support
+  - Models: `gemini-1.5-flash`, `gemini-1.5-pro`, etc.
+  - 1M token context support
+  - Embeddings via `text-embedding-004`
+- **OpenRouter Provider**: Access 100+ models via unified API
+  - Claude, Llama, Mistral, Qwen, DeepSeek, etc.
+  - Proper OpenRouter headers (HTTP-Referer, X-Title)
+- **Provider Dispatcher**: Unified `provider_dispatch::generate()` routes to correct backend
+- **Agent Provider Field**: Agents now specify `"provider": "ollama|openai|google|openrouter"`
+- **API Key Loading**: Keys auto-load from `~/.secrets/keys/` (openai.key, google.key, openrouter.key)
+- **Config Extension**: `openai_api_key`, `google_api_key`, `openrouter_api_key` fields in app_config.json
+- **New Default Agents**: Added GPT Oracle, Gemini Flash, Claude Proxy to agents.json
+
+### Changed (2025-12-05)
+- **chat_bot.rs**: Now uses `provider_dispatch` instead of direct Ollama calls
+- **agents.rs**: Added `provider` field with `"ollama"` as default for backwards compatibility
+- **113 tests passing** (was 111)
+
 ### Added (2025-12-03) - UX & Persistence Update
 - **User Handle Persistence**: User handle is now saved to `config/app_config.json` and persists across restarts.
 - **Twitter-Style Mentions**: Agents now explicitly address participants (e.g., `@human_user`, `@technical_architect`) at the start of their responses.

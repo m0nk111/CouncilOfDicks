@@ -9,5 +9,8 @@
   "p2p_port": 9000,
   "bootstrap_peers": [],
   "user_handle": "m0nk111",
-  "question_generation_prompt": "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself."
+  "question_generation_prompt": "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.",
+  "openai_api_key": null,
+  "openrouter_api_key": null,
+  "google_api_key": null
 }

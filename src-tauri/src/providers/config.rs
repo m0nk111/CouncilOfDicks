@@ -20,6 +20,8 @@ pub struct ProviderConfig {
 pub enum ProviderTypeConfig {
     Ollama,
     OpenAI,
+    OpenRouter,
+    Google,
     Anthropic,
     LocalEmbeddings,
 }
@@ -38,6 +40,15 @@ pub enum ProviderSpecificConfig {
         base_url: Option<String>,
         organization: Option<String>,
         default_model: String,
+    },
+    OpenRouter {
+        api_key: String,
+        default_model: String,
+    },
+    Google {
+        api_key: String,
+        default_model: String,
+        embedding_model: Option<String>,
     },
     Anthropic {
         api_key: String,
@@ -171,6 +182,22 @@ pub fn validate_provider_config(config: &ProviderConfig) -> Result<(), String> {
             }
             if !api_key.starts_with("sk-") {
                 return Err("OpenAI API key must start with 'sk-'".to_string());
+            }
+        }
+        ProviderSpecificConfig::OpenRouter { api_key, .. } => {
+            if api_key.is_empty() {
+                return Err("OpenRouter API key cannot be empty".to_string());
+            }
+            if !api_key.starts_with("sk-or-") {
+                return Err("OpenRouter API key must start with 'sk-or-'".to_string());
+            }
+        }
+        ProviderSpecificConfig::Google { api_key, .. } => {
+            if api_key.is_empty() {
+                return Err("Google API key cannot be empty".to_string());
+            }
+            if !api_key.starts_with("AIza") {
+                return Err("Google API key must start with 'AIza'".to_string());
             }
         }
         ProviderSpecificConfig::Anthropic { api_key, .. } => {

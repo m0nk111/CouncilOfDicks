@@ -19,6 +19,7 @@ pub mod prompt;
 mod protocol;
 mod benchmarks;
 mod providers;
+pub mod provider_dispatch;
 pub mod reputation;
 pub mod state;
 pub mod web_server;

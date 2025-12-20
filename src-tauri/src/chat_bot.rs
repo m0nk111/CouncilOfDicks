@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     agents::{Agent, AgentPool},
     chat::{AuthorType, ChannelType, Message},
-    ollama, prompt, AppState,
+    provider_dispatch, prompt, AppState,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -313,21 +313,16 @@ Answer ONLY "YES" or "NO" (nothing else).
             msg.content
         );
 
-        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
-            Some((u.as_str(), p.as_str()))
-        } else {
-            None
-        };
-
         // Use a smaller/faster model for the check if available, otherwise use agent's model
         let check_model = &agent.model;
         
-        match ollama::ask_ollama_with_auth(
-            &config.ollama_url,
+        match provider_dispatch::generate(
+            &agent.provider,
             check_model,
             check_prompt,
             None,
-            auth,
+            config,
+            Some(self.app_state.logger.clone()),
         )
         .await
         {
@@ -374,28 +369,23 @@ Answer ONLY "YES" or "NO" (nothing else).
 
         self.app_state.log_network(
             "chat_bot",
-            &format!("→ {}:{}", config.ollama_url, agent.model),
+            &format!("→ {}:{}", agent.provider, agent.model),
         );
 
-        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
-            Some((u.as_str(), p.as_str()))
-        } else {
-            None
-        };
-
-        match ollama::ask_ollama_with_auth(
-            &config.ollama_url,
+        match provider_dispatch::generate(
+            &agent.provider,
             &agent.model,
             prompt,
             Some(system_prompt),
-            auth,
+            config,
+            Some(self.app_state.logger.clone()),
         )
         .await
         {
             Ok(response) => {
                 if response.trim().is_empty() {
-                    self.app_state.log_error("chat_bot", "❌ Received empty response from Ollama");
-                    return Err("Empty response from Ollama".to_string());
+                    self.app_state.log_error("chat_bot", "❌ Received empty response from provider");
+                    return Err("Empty response from provider".to_string());
                 }
 
                 self.app_state

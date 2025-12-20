@@ -1,12 +1,16 @@
 pub mod config;
+pub mod google;
 pub mod ollama;
+pub mod openai;
 pub mod registry;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub use google::GoogleProvider;
 pub use ollama::OllamaProvider;
+pub use openai::OpenAIProvider;
 
 /// AI Provider error types
 #[derive(Debug, Clone, Serialize, Deserialize)]

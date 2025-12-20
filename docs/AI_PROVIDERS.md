@@ -1,20 +1,63 @@
 # AI Provider Architecture
 
+## Current Status (v0.6.0)
+
+### ✅ Implemented Providers
+| Provider | Status | Features | API Key Location |
+|----------|--------|----------|------------------|
+| **Ollama** | ✅ Production | Generation, Embeddings, Local models | N/A (self-hosted) |
+| **OpenAI** | ✅ Implemented | GPT-4o, GPT-4, etc. Chat Completions | `~/.secrets/keys/openai.key` |
+| **Google** | ✅ Implemented | Gemini 1.5 Flash/Pro, embeddings | `~/.secrets/keys/google.key` |
+| **OpenRouter** | ✅ Implemented | 100+ models via unified API | `~/.secrets/keys/openrouter.key` |
+
+### Quick Setup
+
+1. **API Keys**: Create key files in `~/.secrets/keys/`:
+   ```bash
+   mkdir -p ~/.secrets/keys
+   echo "sk-proj-YOUR-KEY" > ~/.secrets/keys/openai.key
+   echo "AIzaSy-YOUR-KEY" > ~/.secrets/keys/google.key
+   echo "sk-or-v1-YOUR-KEY" > ~/.secrets/keys/openrouter.key
+   chmod 600 ~/.secrets/keys/*
+   ```
+
+2. **Agent Configuration**: Edit `config/agents.json`:
+   ```json
+   {
+     "name": "GPT Oracle",
+     "handle": "gpt_oracle",
+     "provider": "openai",
+     "model": "gpt-4o",
+     "system_prompt": "You are GPT Oracle..."
+   }
+   ```
+
+3. **Provider Values**: `"ollama"`, `"openai"`, `"google"`, `"openrouter"`
+
+### Provider-Specific Notes
+
+- **Ollama**: Default, no config needed. Supports basic auth via `ollama_username`/`ollama_password`.
+- **OpenAI**: Standard Chat Completions API. Supports embeddings via `text-embedding-3-small`.
+- **Google**: Gemini API. Supports 1M token context (Gemini 1.5 Pro).
+- **OpenRouter**: Access Claude, Llama, Mistral, and 100+ models. No embeddings support.
+
+---
+
 ## Problem Statement
 
 **Current Issues:**
-1. ❌ **Hardcoded Ollama dependency** - Not truly standalone/portable
+1. ~~❌ **Hardcoded Ollama dependency**~~ ✅ Multi-provider support added
 2. ❌ **Embeddings require network** - Knowledge Bank depends on external Ollama API
-3. ❌ **Single provider** - Cannot mix OpenAI, Anthropic, local models
-4. ❌ **No fallback** - If Ollama is down, entire system fails
+3. ~~❌ **Single provider**~~ ✅ Mix OpenAI, Google, Ollama, OpenRouter in same council
+4. ❌ **No fallback** - If primary provider fails, no automatic failover
 
 **Requirements:**
-- ✅ **Standalone operation** - Must work without network (embedded models)
-- ✅ **Provider agnostic** - Support multiple AI backends
-- ✅ **Hot-swappable** - Change providers without restarting
-- ✅ **Mixed councils** - Different models from different providers in same deliberation
-- ✅ **Portable** - Single binary with embedded capabilities
-- ✅ **Configurable** - Easy to add new providers via config/plugins
+- ✅ **Standalone operation** - Must work without network (embedded models) - PLANNED
+- ✅ **Provider agnostic** - Support multiple AI backends ✅ DONE
+- ✅ **Hot-swappable** - Change providers without restarting ✅ DONE (per agent)
+- ✅ **Mixed councils** - Different models from different providers in same deliberation ✅ DONE
+- ✅ **Portable** - Single binary with embedded capabilities - PLANNED
+- ✅ **Configurable** - Easy to add new providers via config ✅ DONE
 
 ---
 

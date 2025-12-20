@@ -15,6 +15,13 @@ pub struct AppConfig {
     pub bootstrap_peers: Vec<String>,
     pub user_handle: String,
     pub question_generation_prompt: String,
+    // Provider API keys
+    #[serde(default)]
+    pub openai_api_key: Option<String>,
+    #[serde(default)]
+    pub openrouter_api_key: Option<String>,
+    #[serde(default)]
+    pub google_api_key: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -31,6 +38,9 @@ impl Default for AppConfig {
             bootstrap_peers: vec![],
             user_handle: "human_user".to_string(),
             question_generation_prompt: "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string(),
+            openai_api_key: None,
+            openrouter_api_key: None,
+            google_api_key: None,
         }
     }
 }
@@ -86,5 +96,58 @@ impl AppConfig {
             Ok(content) => fs::write(path, content).map_err(|e| e.to_string()),
             Err(e) => Err(e.to_string()),
         }
+    }
+
+    /// Load API keys from ~/.secrets/keys/ directory
+    /// Files: openai.key, google.key, openrouter.key
+    pub fn load_api_keys_from_files(&mut self) {
+        let keys_dir = dirs::home_dir()
+            .map(|h| h.join(".secrets/keys"))
+            .unwrap_or_else(|| PathBuf::from("~/.secrets/keys"));
+
+        // OpenAI
+        if self.openai_api_key.is_none() {
+            if let Ok(key) = fs::read_to_string(keys_dir.join("openai.key")) {
+                let key = key.trim().to_string();
+                if !key.is_empty() {
+                    self.openai_api_key = Some(key);
+                }
+            }
+        }
+
+        // Google
+        if self.google_api_key.is_none() {
+            if let Ok(key) = fs::read_to_string(keys_dir.join("google.key")) {
+                let key = key.trim().to_string();
+                if !key.is_empty() {
+                    self.google_api_key = Some(key);
+                }
+            }
+        }
+
+        // OpenRouter
+        if self.openrouter_api_key.is_none() {
+            if let Ok(key) = fs::read_to_string(keys_dir.join("openrouter.key")) {
+                let key = key.trim().to_string();
+                if !key.is_empty() {
+                    self.openrouter_api_key = Some(key);
+                }
+            }
+        }
+    }
+
+    /// Get configured provider names (for display)
+    pub fn available_providers(&self) -> Vec<&str> {
+        let mut providers = vec!["ollama"]; // Always available
+        if self.openai_api_key.is_some() {
+            providers.push("openai");
+        }
+        if self.google_api_key.is_some() {
+            providers.push("google");
+        }
+        if self.openrouter_api_key.is_some() {
+            providers.push("openrouter");
+        }
+        providers
     }
 }
