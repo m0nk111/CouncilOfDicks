@@ -1064,6 +1064,41 @@ async fn provider_generate_username(
     providers::config::generate_username_from_model(&model_name, &provider_name).await
 }
 
+/// Let an AI agent choose its own identity (name, handle, role, tagline)
+#[tauri::command]
+async fn provider_generate_identity(
+    model_name: String,
+    provider_name: String,
+    user_hint: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<providers::config::AgentIdentity, String> {
+    state.log_info("provider_generate_identity", &format!(
+        "🎭 Generating identity for {} via {}...", model_name, provider_name
+    ));
+    
+    // Get existing agent names to avoid duplicates
+    let existing_agents: Vec<String> = state.agent_pool
+        .list_agents()
+        .await
+        .iter()
+        .map(|a| a.name.clone())
+        .collect();
+    
+    let identity = providers::config::generate_agent_identity(
+        &model_name,
+        &provider_name,
+        &existing_agents,
+        user_hint.as_deref(),
+    ).await?;
+    
+    state.log_success("provider_generate_identity", &format!(
+        "🎭 AI chose: {} (@{}) - {} \"{}\"",
+        identity.name, identity.handle, identity.role, identity.tagline
+    ));
+    
+    Ok(identity)
+}
+
 #[tauri::command]
 async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, String> {
     let config = state.get_config();
@@ -1148,6 +1183,7 @@ pub fn run() {
             provider_test_connection,
             provider_set_default,
             provider_generate_username,
+            provider_generate_identity,
             chat_send_message,
             chat_get_messages,
             chat_add_reaction,

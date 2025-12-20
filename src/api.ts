@@ -500,11 +500,36 @@ export async function providerGenerateUsername(modelName: string, providerName: 
   return await tauriInvoke("provider_generate_username", { modelName, providerName });
 }
 
+// AI self-naming types
+export interface AgentIdentity {
+  name: string;
+  handle: string;
+  role: string;
+  tagline: string;
+}
+
+/**
+ * Let an AI agent choose its own identity (name, handle, role, tagline)
+ * This is the "self-naming" feature where the AI bootstraps its own identity
+ */
+export async function providerGenerateIdentity(
+  modelName: string, 
+  providerName: string,
+  userHint?: string
+): Promise<AgentIdentity> {
+  return await tauriInvoke("provider_generate_identity", { 
+    modelName, 
+    providerName,
+    userHint: userHint ?? null 
+  });
+}
+
 // Agent pool management types
 export interface Agent {
   id: string;
   name: string;
   handle?: string;
+  provider?: string;
   model: string;
   system_prompt: string;
   enabled_tools: string[];

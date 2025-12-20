@@ -2,25 +2,54 @@
 
 ## 🤖 LLM Self-Naming & Role Selection
 
-**Status:** Planned
+**Status:** ✅ Implemented (v0.6.0)
 **Priority:** High
 
 ### Concept
-Instead of the user manually configuring every aspect of an agent (name, handle, role), the system should allow LLMs to "bootstrap" themselves based on their environment and a pre-system prompt.
+Instead of the user manually configuring every aspect of an agent (name, handle, role), the system allows LLMs to "bootstrap" themselves based on their environment and a pre-system prompt.
+
+### API
+```typescript
+import { providerGenerateIdentity } from './api';
+
+const identity = await providerGenerateIdentity(
+  "gpt-4o",      // model
+  "openai",      // provider
+  "Be technical" // optional user hint
+);
+
+// Returns:
+// {
+//   name: "Circuit Sage",
+//   handle: "circuit_sage",
+//   role: "Architect",
+//   tagline: "Bridging theory and implementation with precision"
+// }
+```
+
+### Available Roles
+- **Skeptic** - Questions assumptions, demands evidence
+- **Visionary** - Creative solutions, thinks outside the box
+- **Architect** - Technical implementation, system design
+- **Guardian** - Ethics, safety, human values
+- **Mediator** - Finds common ground, resolves conflicts
+- **Analyst** - Data-driven, logical reasoning
+- **Historian** - Learns from past decisions, provides context
+- **Advocate** - Champions specific perspectives
 
 ### Workflow
 1.  **Initialization**: When a new agent is added (or if an existing agent is set to "auto-configure"), the system initiates a setup phase.
 2.  **Context Injection**: The system provides the LLM with:
     *   **Environment Context**: "You are part of the Council of Dicks, a decentralized AI consensus network."
     *   **User System Prompt**: Any specific instructions provided by the user (optional).
-    *   **Constraints**: "Choose a name (max 20 chars), a handle (snake_case), and one of the following roles: [Skeptic, Visionary, Architect, ...]."
-3.  **Self-Selection**: The LLM generates its own identity configuration.
+    *   **Constraints**: "Choose a name (max 25 chars), a handle (snake_case), and one of the available roles."
+3.  **Self-Selection**: The LLM generates its own identity configuration as JSON.
 4.  **Persistence**: The system saves this configuration to `agents.json`.
 
 ### Benefits
 *   **Reduced Friction**: Users don't need to be creative for every agent.
 *   **Personality Alignment**: The LLM can choose a name that fits its internal "vibe" or the specific model's strengths.
-*   **Dynamic Roles**: Agents can adapt their roles based on the current composition of the council (e.g., "I see there are too many Skeptics, I will be a Mediator").
+*   **Dynamic Roles**: Agents can adapt their roles based on the current composition of the council.
 
 ### Vision Alignment
 This feature supports the **Symbiotic Agents** goal (see `CORE_VISION.md`). By allowing agents to define their own identity within human-set boundaries, we move from "configuring tools" to "onboarding colleagues."

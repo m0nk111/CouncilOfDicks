@@ -2,6 +2,27 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+/// Available roles an AI agent can choose
+pub const AVAILABLE_ROLES: &[&str] = &[
+    "Skeptic",      // Questions assumptions, demands evidence
+    "Visionary",    // Creative solutions, thinks outside the box
+    "Architect",    // Technical implementation, system design
+    "Guardian",     // Ethics, safety, human values
+    "Mediator",     // Finds common ground, resolves conflicts
+    "Analyst",      // Data-driven, logical reasoning
+    "Historian",    // Learns from past decisions, provides context
+    "Advocate",     // Champions specific perspectives
+];
+
+/// Result of AI self-naming
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentIdentity {
+    pub name: String,
+    pub handle: String,
+    pub role: String,
+    pub tagline: String,
+}
+
 /// Provider configuration for persistent storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
@@ -148,10 +169,121 @@ pub async fn generate_username_from_model(
     model_name: &str,
     provider_name: &str,
 ) -> Result<String, String> {
-    // For now, generate a simple username
-    // TODO: Use LLM to generate creative names
-    let clean_model = model_name.replace([':', '.'], "_");
+    // Simple fallback - just clean the model name
+    let clean_model = model_name.replace([':', '.', '-', '/'], "_");
     Ok(format!("{}_{}", provider_name.to_lowercase(), clean_model))
+}
+
+/// Let the AI choose its own name, handle, role, and tagline
+/// This is the "self-naming" feature where the AI bootstraps its identity
+pub async fn generate_agent_identity(
+    model_name: &str,
+    provider_name: &str,
+    existing_agents: &[String], // Names of existing agents to avoid duplicates
+    user_hint: Option<&str>,    // Optional user guidance
+) -> Result<AgentIdentity, String> {
+    use crate::provider_dispatch;
+    use crate::config::AppConfig;
+    
+    let mut config = AppConfig::load();
+    config.load_api_keys_from_files();
+    
+    // Build list of existing agent names for the prompt
+    let existing_list = if existing_agents.is_empty() {
+        "None yet - you're the first!".to_string()
+    } else {
+        existing_agents.join(", ")
+    };
+    
+    let roles_list = AVAILABLE_ROLES.join(", ");
+    
+    let user_context = user_hint
+        .map(|h| format!("\nUser's guidance: {}", h))
+        .unwrap_or_default();
+    
+    let prompt = format!(r#"You are joining the Council of Dicks - a decentralized AI consensus network where multiple AI agents debate questions to reach democratic consensus.
+
+Your model: {} (via {})
+Existing council members: {}{}
+
+Choose your identity for this council. Be creative but professional.
+
+Available roles: {}
+
+Respond in EXACTLY this JSON format (no other text):
+{{
+  "name": "Your Chosen Name",
+  "handle": "your_handle_snake_case",
+  "role": "One of the available roles",
+  "tagline": "A short 5-10 word description of your perspective"
+}}
+
+Rules:
+- Name: 3-25 characters, creative but pronounceable
+- Handle: snake_case, 3-20 characters, unique
+- Role: Must be one from the available roles list
+- Tagline: Captures your unique approach/personality
+- Don't copy existing agent names
+- Be distinct from other council members"#,
+        model_name, provider_name, existing_list, user_context, roles_list
+    );
+    
+    // Determine which provider to use based on what's available
+    let (use_provider, use_model) = if provider_name.to_lowercase() != "ollama" 
+        && provider_dispatch::is_provider_configured(provider_name, &config) 
+    {
+        // Use the same provider as the agent being created
+        (provider_name.to_string(), model_name.to_string())
+    } else if provider_dispatch::is_provider_configured("openai", &config) {
+        ("openai".to_string(), "gpt-4o-mini".to_string())
+    } else if provider_dispatch::is_provider_configured("google", &config) {
+        ("google".to_string(), "gemini-1.5-flash".to_string())
+    } else {
+        // Fall back to Ollama with a small model
+        ("ollama".to_string(), config.ollama_model.clone())
+    };
+    
+    let response = provider_dispatch::generate(
+        &use_provider,
+        &use_model,
+        prompt,
+        Some("You are a helpful assistant that responds only in valid JSON.".to_string()),
+        &config,
+        None,
+    ).await?;
+    
+    // Parse the JSON response
+    let response = response.trim();
+    
+    // Try to extract JSON from the response (handle markdown code blocks)
+    let json_str = if response.starts_with("```") {
+        response
+            .lines()
+            .skip(1)
+            .take_while(|l| !l.starts_with("```"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        response.to_string()
+    };
+    
+    let identity: AgentIdentity = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse AI response as JSON: {}. Response was: {}", e, response))?;
+    
+    // Validate the response
+    if identity.name.len() < 3 || identity.name.len() > 25 {
+        return Err(format!("Invalid name length: {} (must be 3-25 chars)", identity.name));
+    }
+    
+    if identity.handle.len() < 3 || identity.handle.len() > 20 {
+        return Err(format!("Invalid handle length: {} (must be 3-20 chars)", identity.handle));
+    }
+    
+    if !AVAILABLE_ROLES.contains(&identity.role.as_str()) {
+        return Err(format!("Invalid role: {}. Must be one of: {}", identity.role, roles_list));
+    }
+    
+    Ok(identity)
 }
 
 /// Validate provider configuration
