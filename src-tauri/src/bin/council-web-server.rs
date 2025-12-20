@@ -29,15 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Council manager initialized");
     println!("✅ Agent pool initialized");
 
-
-
-    let app_state_clone = Arc::clone(&app_state);
-    let agent_pool_clone = Arc::clone(&agent_pool);
-    tokio::spawn(async move {
-        let mut chat_bot = ChatBot::new(app_state_clone, agent_pool_clone);
-        chat_bot.start_monitoring().await;
-    });
-
+    // Note: ChatBot is already started by AppState::new_async()
     println!("✅ Chat bot enabled – listening to #general\n");
 
     // Start web server
