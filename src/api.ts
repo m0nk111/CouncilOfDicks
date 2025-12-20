@@ -624,42 +624,19 @@ export async function agentUpdate(agent: Agent): Promise<void> {
 /**
  * Reset an existing agent's identity - let the AI choose a new name, handle, role, and tagline
  * The agent keeps the same provider/model but gets a fresh identity
+ * Works in both Tauri and web mode via HTTP API
  */
 export async function agentResetIdentity(
   agentId: string,
   userHint?: string
 ): Promise<{ agent: Agent; identity: AgentIdentity }> {
-  // Step 1: Get the existing agent
-  const existingAgent = await agentGet(agentId);
-  
-  // Step 2: Let the AI choose a new identity
-  const identity = await providerGenerateIdentity(
-    existingAgent.model, 
-    existingAgent.provider || "ollama", 
-    userHint
+  // Use HTTP API endpoint which handles everything server-side
+  const result = await apiCall<{ agent: Agent; identity: AgentIdentity }>(
+    "agent_reset_identity",
+    "POST /api/agents/reset-identity",
+    { agent_id: agentId, user_hint: userHint ?? null }
   );
-  
-  // Step 3: Generate new system prompt based on the role
-  const systemPrompt = `You are ${identity.name}, a council member with the role of ${identity.role}. ${identity.tagline}
-
-Your job is to participate in council deliberations, bringing your unique perspective as a ${identity.role}. 
-Stay in character and provide thoughtful, substantive contributions to discussions.`;
-  
-  // Step 4: Update the agent with new identity
-  const updatedAgent: Agent = {
-    ...existingAgent,
-    name: identity.name,
-    handle: identity.handle,
-    system_prompt: systemPrompt,
-    metadata: {
-      ...existingAgent.metadata,
-      role: identity.role,
-    },
-  };
-  
-  await agentUpdate(updatedAgent);
-  
-  return { agent: updatedAgent, identity };
+  return result;
 }
 
 export async function agentList(): Promise<Agent[]> {

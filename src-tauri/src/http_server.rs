@@ -83,6 +83,9 @@ impl HttpServer {
             .route("/api/pohv/status", get(pohv_status))
             // Agent API
             .route("/api/agents", get(agent_list))
+            .route("/api/agents/get", post(agent_get))
+            .route("/api/agents/update", post(agent_update))
+            .route("/api/agents/reset-identity", post(agent_reset_identity))
             // Chat API
             .route("/api/chat/message", post(chat_message_send))
             .route("/api/chat/messages", post(chat_messages_get))
@@ -324,6 +327,95 @@ async fn agent_list(
 ) -> Json<ApiResponse<Vec<crate::agents::Agent>>> {
     let agents = state.agent_pool.list_agents().await;
     Json(ApiResponse::success(agents))
+}
+
+#[derive(Deserialize)]
+struct AgentGetRequest {
+    agent_id: String,
+}
+
+async fn agent_get(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<AgentGetRequest>,
+) -> Result<Json<ApiResponse<crate::agents::Agent>>, ApiError> {
+    let agent = state.agent_pool.get_agent(&payload.agent_id).await
+        .map_err(ApiError::InternalError)?;
+    Ok(Json(ApiResponse::success(agent)))
+}
+
+async fn agent_update(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<crate::agents::Agent>,
+) -> Result<Json<ApiResponse<()>>, ApiError> {
+    state.agent_pool.update_agent(payload).await
+        .map_err(ApiError::InternalError)?;
+    Ok(Json(ApiResponse::success(())))
+}
+
+#[derive(Deserialize)]
+struct AgentResetIdentityRequest {
+    agent_id: String,
+    user_hint: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AgentResetIdentityResponse {
+    agent: crate::agents::Agent,
+    identity: crate::providers::config::AgentIdentity,
+}
+
+async fn agent_reset_identity(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<AgentResetIdentityRequest>,
+) -> Result<Json<ApiResponse<AgentResetIdentityResponse>>, ApiError> {
+    state.log_info("http_server", &format!("🎭 Resetting identity for agent: {}", payload.agent_id));
+    
+    // Get existing agent
+    let existing_agent = state.agent_pool.get_agent(&payload.agent_id).await
+        .map_err(ApiError::InternalError)?;
+    
+    // Get existing agent names to avoid duplicates
+    let existing_names: Vec<String> = state.agent_pool
+        .list_agents()
+        .await
+        .iter()
+        .filter(|a| a.id != payload.agent_id)
+        .map(|a| a.name.clone())
+        .collect();
+    
+    // Generate new identity
+    let identity = crate::providers::config::generate_agent_identity(
+        &existing_agent.model,
+        &existing_agent.provider,
+        &existing_names,
+        payload.user_hint.as_deref(),
+    ).await.map_err(ApiError::InternalError)?;
+    
+    // Generate new system prompt
+    let system_prompt = format!(
+        "You are {}, a council member with the role of {}. {}\n\nYour job is to participate in council deliberations, bringing your unique perspective as a {}. Stay in character and provide thoughtful, substantive contributions to discussions.",
+        identity.name, identity.role, identity.tagline, identity.role
+    );
+    
+    // Update agent with new identity
+    let mut updated_agent = existing_agent;
+    updated_agent.name = identity.name.clone();
+    updated_agent.handle = identity.handle.clone();
+    updated_agent.system_prompt = system_prompt;
+    updated_agent.metadata.insert("role".to_string(), identity.role.clone());
+    
+    state.agent_pool.update_agent(updated_agent.clone()).await
+        .map_err(ApiError::InternalError)?;
+    
+    state.log_success("http_server", &format!(
+        "🎭 Agent {} is now: {} (@{}) - {}",
+        payload.agent_id, identity.name, identity.handle, identity.role
+    ));
+    
+    Ok(Json(ApiResponse::success(AgentResetIdentityResponse {
+        agent: updated_agent,
+        identity,
+    })))
 }
 
 #[derive(Deserialize)]
