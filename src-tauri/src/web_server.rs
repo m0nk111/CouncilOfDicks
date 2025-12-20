@@ -75,6 +75,18 @@ pub struct SetHandleRequest {
     pub handle: String,
 }
 
+#[derive(Deserialize)]
+pub struct AgentResetIdentityRequest {
+    pub agent_id: String,
+    pub user_hint: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct AgentResetIdentityResponse {
+    pub agent: crate::agents::Agent,
+    pub identity: crate::providers::config::AgentIdentity,
+}
+
 #[derive(Serialize)]
 pub struct CouncilSessionsListResponse {
     pub sessions: Vec<crate::protocol::CouncilSession>,
@@ -182,6 +194,66 @@ async fn delete_agent(State(state): State<WebState>, Json(payload): Json<Value>)
             .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, Json(ApiResponse::<String>::err(e))).into_response(),
     }
+}
+
+async fn reset_agent_identity(
+    State(state): State<WebState>,
+    Json(payload): Json<AgentResetIdentityRequest>,
+) -> Response {
+    state.app_state.log_info("web_server", &format!("🎭 Resetting identity for agent: {}", payload.agent_id));
+    
+    // Get existing agent
+    let existing_agent = match state.agent_pool.get_agent(&payload.agent_id).await {
+        Ok(agent) => agent,
+        Err(e) => return (StatusCode::NOT_FOUND, Json(ApiResponse::<String>::err(format!("Agent not found: {}", e)))).into_response(),
+    };
+    
+    // Get existing agent names to avoid duplicates
+    let existing_names: Vec<String> = state.agent_pool
+        .list_agents()
+        .await
+        .iter()
+        .filter(|a| a.id != payload.agent_id)
+        .map(|a| a.name.clone())
+        .collect();
+    
+    // Generate new identity
+    let identity = match crate::providers::config::generate_agent_identity(
+        &existing_agent.model,
+        &existing_agent.provider,
+        &existing_names,
+        payload.user_hint.as_deref(),
+    ).await {
+        Ok(id) => id,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<String>::err(format!("Failed to generate identity: {}", e)))).into_response(),
+    };
+    
+    // Generate new system prompt
+    let system_prompt = format!(
+        "You are {}, a council member with the role of {}. {}\n\nYour job is to participate in council deliberations, bringing your unique perspective as a {}. Stay in character and provide thoughtful, substantive contributions to discussions.",
+        identity.name, identity.role, identity.tagline, identity.role
+    );
+    
+    // Update agent with new identity
+    let mut updated_agent = existing_agent;
+    updated_agent.name = identity.name.clone();
+    updated_agent.handle = identity.handle.clone();
+    updated_agent.system_prompt = system_prompt;
+    updated_agent.metadata.insert("role".to_string(), identity.role.clone());
+    
+    if let Err(e) = state.agent_pool.update_agent(updated_agent.clone()).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<String>::err(format!("Failed to update agent: {}", e)))).into_response();
+    }
+    
+    state.app_state.log_success("web_server", &format!(
+        "🎭 Agent {} is now: {} (@{}) - {}",
+        payload.agent_id, identity.name, identity.handle, identity.role
+    ));
+    
+    (StatusCode::OK, Json(ApiResponse::ok(AgentResetIdentityResponse {
+        agent: updated_agent,
+        identity,
+    }))).into_response()
 }
 
 // Council endpoints
@@ -447,6 +519,7 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/agents", get(list_agents))
         .route("/api/agents/create", post(create_agent))
         .route("/api/agents/delete", post(delete_agent))
+        .route("/api/agents/reset-identity", post(reset_agent_identity))
         .route("/api/council/sessions", get(list_council_sessions))
         .route("/api/council/session", post(get_council_session))
         .route("/api/council/create", post(create_council_session))

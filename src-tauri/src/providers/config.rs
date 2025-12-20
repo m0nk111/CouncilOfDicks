@@ -213,14 +213,14 @@ Available roles: {}
 Respond in EXACTLY this JSON format (no other text):
 {{
   "name": "Your Chosen Name",
-  "handle": "your_handle_snake_case",
+  "handle": "your_handle",
   "role": "One of the available roles",
   "tagline": "A short 5-10 word description of your perspective"
 }}
 
 Rules:
 - Name: 3-25 characters, creative but pronounceable
-- Handle: snake_case, 3-20 characters, unique
+- Handle: snake_case, 3-16 characters maximum, unique
 - Role: Must be one from the available roles list
 - Tagline: Captures your unique approach/personality
 - Don't copy existing agent names
