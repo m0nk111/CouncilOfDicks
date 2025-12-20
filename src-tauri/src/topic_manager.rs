@@ -240,7 +240,8 @@ impl TopicManager {
                 );
 
                 let config = app_state.get_config();
-                let system_prompt = crate::prompt::compose_system_prompt(&agent.system_prompt);
+                // Use topic-specific system prompt WITHOUT TCOD framing
+                let system_prompt = crate::prompt::compose_topic_system_prompt(&agent.system_prompt);
                 
                 let provider = crate::providers::ollama::OllamaProvider::new(
                     config.ollama_url.clone(),
