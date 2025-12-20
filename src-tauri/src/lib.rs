@@ -877,6 +877,43 @@ async fn agent_add(
     Ok(agent_id)
 }
 
+/// Add agent with full details (provider, handle, role, etc.)
+#[tauri::command]
+async fn agent_add_full(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    handle: String,
+    provider: String,
+    model: String,
+    system_prompt: String,
+    role: Option<String>,
+    temperature: Option<f32>,
+) -> Result<String, String> {
+    use std::collections::HashMap;
+    
+    let mut metadata = HashMap::new();
+    if let Some(r) = role {
+        metadata.insert("role".to_string(), r);
+    }
+    
+    let agent = agents::Agent {
+        id: uuid::Uuid::new_v4().to_string(),
+        name,
+        handle,
+        provider,
+        model,
+        system_prompt,
+        enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
+        temperature: temperature.unwrap_or(0.7),
+        active: true,
+        metadata,
+    };
+    
+    let agent_id = state.agent_pool.add_agent(agent).await?;
+    state.log_success("agent", &format!("Added full agent: {}", agent_id));
+    Ok(agent_id)
+}
+
 #[tauri::command]
 async fn agent_remove(state: tauri::State<'_, AppState>, agent_id: String) -> Result<(), String> {
     state.agent_pool.remove_agent(&agent_id).await?;
@@ -1194,6 +1231,7 @@ pub fn run() {
             chat_check_spam,
             chat_record_message,
             agent_add,
+            agent_add_full,
             agent_remove,
             agent_update,
             agent_list,

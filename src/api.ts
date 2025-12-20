@@ -557,6 +557,62 @@ export async function agentAdd(
   });
 }
 
+/**
+ * Add agent with full details (provider, handle, role, etc.)
+ * Use this after providerGenerateIdentity() to create an agent with its self-chosen identity
+ */
+export async function agentAddFull(
+  name: string,
+  handle: string,
+  provider: string,
+  model: string,
+  systemPrompt: string,
+  role?: string,
+  temperature?: number
+): Promise<string> {
+  return await tauriInvoke("agent_add_full", {
+    name,
+    handle,
+    provider,
+    model,
+    systemPrompt,
+    role: role ?? null,
+    temperature: temperature ?? null,
+  });
+}
+
+/**
+ * Create an agent with AI-generated identity
+ * Combines providerGenerateIdentity() + agentAddFull() into one call
+ */
+export async function agentCreateWithIdentity(
+  provider: string,
+  model: string,
+  userHint?: string
+): Promise<{ agentId: string; identity: AgentIdentity }> {
+  // Step 1: Let the AI choose its identity
+  const identity = await providerGenerateIdentity(model, provider, userHint);
+  
+  // Step 2: Generate system prompt based on the role
+  const systemPrompt = `You are ${identity.name}, a council member with the role of ${identity.role}. ${identity.tagline}
+
+Your job is to participate in council deliberations, bringing your unique perspective as a ${identity.role}. 
+Stay in character and provide thoughtful, substantive contributions to discussions.`;
+  
+  // Step 3: Create the agent with the generated identity
+  const agentId = await agentAddFull(
+    identity.name,
+    identity.handle,
+    provider,
+    model,
+    systemPrompt,
+    identity.role,
+    0.7
+  );
+  
+  return { agentId, identity };
+}
+
 export async function agentRemove(agentId: string): Promise<void> {
   return await apiCall("agent_remove", "POST /api/agents/delete", { agent_id: agentId });
 }
