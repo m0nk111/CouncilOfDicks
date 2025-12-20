@@ -279,3 +279,8 @@ When adding new MCP tools:
 ---
 
 **Note:** This is a decentralized implementation. Each client is both an MCP server AND a council participant. This ensures no single point of failure and true peer-to-peer consensus.
+
+## 📚 Related Documentation
+
+- **[ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md)**: How the MCP server fits into the broader decentralized architecture.
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: Security considerations for external agent access.

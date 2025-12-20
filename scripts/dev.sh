@@ -19,7 +19,7 @@ fi
 
 echo ""
 echo "2️⃣  Starting Tauri dev server..."
-echo "   Port: 5174"
+echo "   Port: 5175"
 echo "   Hot reload: enabled"
 echo ""
 

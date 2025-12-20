@@ -43,6 +43,12 @@ pub struct AppState {
     pub constitution_manager: Arc<ConstitutionManager>,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         tokio::runtime::Runtime::new()
@@ -80,6 +86,10 @@ impl AppState {
         // Load sessions from DB
         council_manager.load_from_db().await;
 
+        let channel_manager = Arc::new(ChannelManager::new(knowledge_bank.clone()));
+        // Load chat history
+        channel_manager.load_history().await;
+
         let mcp_server = Arc::new(McpServer::new(
             9001,
             council_manager.clone(),
@@ -98,7 +108,7 @@ impl AppState {
                         "crypto",
                         &format!(
                             "Identity loaded: {}",
-                            identity.public_key_base64()[..16].to_string()
+                            &identity.public_key_base64()[..16]
                         ),
                     );
                     Arc::new(identity)
@@ -122,7 +132,7 @@ impl AppState {
         };
 
         // Initialize channel manager
-        let channel_manager = Arc::new(ChannelManager::new());
+        let channel_manager = Arc::new(ChannelManager::new(knowledge_bank.clone()));
         let _ = channel_manager.send_system_message(
             crate::chat::ChannelType::General,
             "🤖 Welcome to Council Of Dicks! Type /help for commands.".to_string(),

@@ -25,6 +25,12 @@ pub struct ConstitutionManager {
     state: Mutex<Constitution>,
 }
 
+impl Default for ConstitutionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConstitutionManager {
     pub fn new() -> Self {
         let mut path = PathBuf::from("config/constitution.md");

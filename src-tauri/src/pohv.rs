@@ -26,6 +26,12 @@ pub struct PoHVSystem {
     status: Mutex<PoHVStatus>,
 }
 
+impl Default for PoHVSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PoHVSystem {
     pub fn new() -> Self {
         Self {

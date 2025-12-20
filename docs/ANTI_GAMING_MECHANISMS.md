@@ -465,3 +465,9 @@ const IMMUTABLE_RULES: &[Rule] = &[
 ---
 
 *Make honesty easier than deception.* 🛡️
+
+## 📚 Related Documentation
+
+- **[AI_RANKING_SYSTEM.md](AI_RANKING_SYSTEM.md)**: How gaming attempts negatively impact reputation scores.
+- **[DELIBERATION_FLOW.md](DELIBERATION_FLOW.md)**: The process where these anti-gaming checks are applied.
+- **[CRYPTO.md](CRYPTO.md)**: Technical details of the cryptographic commitments used in blind voting.

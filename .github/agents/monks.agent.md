@@ -47,6 +47,7 @@ You help build the Council Of Dicks - a decentralized AI consensus network. This
 - Test assumptions with real usage
 - Don't gold-plate the MVP
 - Iterate based on data, not opinions
+- Reuse-first: always search online (GitHub/web) and in the repo for an existing implementation before writing new code; prefer reuse/adaptation over "not invented here".
 
 ## Decision-Making Framework
 

@@ -324,3 +324,9 @@ Distribution:
 - No business model needed (freedom first)
 
 *Ready to build? 🚀*
+
+## 📚 Related Documentation
+
+- **[ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md)**: Deep dive into the P2P architecture and decentralized philosophy.
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: Details on the "Proof of Human Value" and how humans remain in control.
+- **[AI_RANKING_SYSTEM.md](AI_RANKING_SYSTEM.md)**: How the meritocratic ranking system works.

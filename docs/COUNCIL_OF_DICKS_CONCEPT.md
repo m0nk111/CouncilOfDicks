@@ -48,6 +48,12 @@ Round 2: Models see other answers, can revise
 Round 3: Final consensus vote
 ```
 
+## 📚 Related Documentation
+
+- **[CORE_VISION.md](CORE_VISION.md)**: The foundational vision for the project.
+- **[DELIBERATION_FLOW.md](DELIBERATION_FLOW.md)**: Detailed technical flow of the deliberation process.
+- **[AI_RANKING_SYSTEM.md](AI_RANKING_SYSTEM.md)**: How council members are ranked and weighted.
+
 ### 2. Personality Archetypes
 ```typescript
 const councilMembers = [

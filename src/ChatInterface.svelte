@@ -382,6 +382,22 @@
     const statusInterval = setInterval(async () => {
       try {
         chatStatus = await chatGetStatus();
+        
+        // Update participants status based on chatStatus
+        if (chatStatus && participants.length > 0) {
+          participants = participants.map(p => {
+            if (p.kind === 'agent') {
+              if (chatStatus?.current_thinking === p.name) {
+                return { ...p, status: 'thinking' };
+              } else if (chatStatus?.queue.includes(p.name)) {
+                return { ...p, status: 'queued' };
+              } else {
+                return { ...p, status: 'idle' };
+              }
+            }
+            return p;
+          });
+        }
       } catch (e) {
         // console.error("Failed to get chat status", e);
       }

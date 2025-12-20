@@ -11,7 +11,7 @@ mod tests {
     fn test_config_default() {
         let config = AppConfig::default();
         assert_eq!(config.ollama_url, "http://192.168.1.5:11434");
-        assert_eq!(config.ollama_model, "mistral:7b");
+        assert_eq!(config.ollama_model, "qwen3-coder-30b-q4km-32k:latest");
         assert_eq!(config.debug_enabled, true);
     }
 

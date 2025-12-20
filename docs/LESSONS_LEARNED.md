@@ -23,3 +23,8 @@
 **Issue:** The frontend in "Web Mode" (browser) couldn't communicate with the backend because it was trying to use Tauri's IPC instead of HTTP.
 **Lesson:** When building a hybrid Tauri/Web app, the API adapter layer is critical. It must robustly detect the environment and switch strategies (IPC vs. HTTP fetch).
 **Fix:** Updated `api-adapter.ts` to correctly point to port 8080 when running in the browser.
+
+## 📚 Related Documentation
+
+- **[ROADMAP.md](ROADMAP.md)**: How these lessons influence future development.
+- **[HEADLESS.md](HEADLESS.md)**: Lessons learned from headless deployment challenges.

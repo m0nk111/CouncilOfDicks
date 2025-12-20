@@ -58,3 +58,8 @@ Final thoughts and overall assessment
 ---
 
 *All evaluators are credited in project documentation. Thank you for helping improve this project!*
+
+## 📚 Related Documentation
+
+- **[CORE_VISION.md](../CORE_VISION.md)**: The vision against which the project should be evaluated.
+- **[ARCHITECTURE_DISCUSSION.md](../ARCHITECTURE_DISCUSSION.md)**: The architectural decisions to critique.

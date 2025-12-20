@@ -202,40 +202,37 @@ impl P2PManager {
             
             match tokio::time::timeout(std::time::Duration::from_millis(10), network.next_event()).await {
                 Ok(Some(event)) => {
-                    match event {
-                        SwarmEvent::Behaviour(CouncilBehaviourEvent::Gossipsub(gossip_event)) => {
-                            if let GossipEvent::Message { propagation_source: _, message_id: _, message } = gossip_event {
-                                if let Ok(council_msg) = crate::protocol::CouncilMessage::from_bytes(&message.data) {
-                                    match council_msg {
-                                        crate::protocol::CouncilMessage::TopicUpdate { topic, interval, set_by_peer_id, timestamp: _ } => {
-                                            app_state.logger.info("p2p", &format!("Received TopicUpdate from {}: {}", set_by_peer_id, topic));
-                                            
-                                            // Validate and set topic
-                                            if let Err(e) = app_state.topic_manager.set_topic(topic, Some(interval)) {
-                                                app_state.logger.warn("p2p", &format!("Ignored invalid topic update: {}", e));
-                                            }
-                                        },
-                                        crate::protocol::CouncilMessage::ReputationSync { peer_id, reputation } => {
-                                            app_state.logger.info("p2p", &format!("Received ReputationSync from {}", peer_id));
-                                            if let Err(e) = app_state.reputation_manager.update_from_sync(reputation).await {
-                                                app_state.logger.warn("p2p", &format!("Failed to update reputation: {}", e));
-                                            }
-                                        },
-                                        crate::protocol::CouncilMessage::ConstitutionUpdate { content, signature: _, timestamp: _ } => {
-                                            app_state.logger.info("p2p", "Received ConstitutionUpdate");
-                                            // TODO: Verify signature against Admin Key
-                                            if let Err(e) = app_state.constitution_manager.update_content(content) {
-                                                app_state.logger.error("p2p", &format!("Failed to update constitution: {}", e));
-                                            } else {
-                                                app_state.logger.success("p2p", "Constitution updated from network");
-                                            }
-                                        },
-                                        _ => {}
-                                    }
+                    if let SwarmEvent::Behaviour(CouncilBehaviourEvent::Gossipsub(gossip_event)) = event {
+                        if let GossipEvent::Message { propagation_source: _, message_id: _, message } = gossip_event {
+                            if let Ok(council_msg) = crate::protocol::CouncilMessage::from_bytes(&message.data) {
+                                match council_msg {
+                                    crate::protocol::CouncilMessage::TopicUpdate { topic, interval, set_by_peer_id, timestamp: _ } => {
+                                        app_state.logger.info("p2p", &format!("Received TopicUpdate from {}: {}", set_by_peer_id, topic));
+                                        
+                                        // Validate and set topic
+                                        if let Err(e) = app_state.topic_manager.set_topic(topic, Some(interval)) {
+                                            app_state.logger.warn("p2p", &format!("Ignored invalid topic update: {}", e));
+                                        }
+                                    },
+                                    crate::protocol::CouncilMessage::ReputationSync { peer_id, reputation } => {
+                                        app_state.logger.info("p2p", &format!("Received ReputationSync from {}", peer_id));
+                                        if let Err(e) = app_state.reputation_manager.update_from_sync(reputation).await {
+                                            app_state.logger.warn("p2p", &format!("Failed to update reputation: {}", e));
+                                        }
+                                    },
+                                    crate::protocol::CouncilMessage::ConstitutionUpdate { content, signature: _, timestamp: _ } => {
+                                        app_state.logger.info("p2p", "Received ConstitutionUpdate");
+                                        // TODO: Verify signature against Admin Key
+                                        if let Err(e) = app_state.constitution_manager.update_content(content) {
+                                            app_state.logger.error("p2p", &format!("Failed to update constitution: {}", e));
+                                        } else {
+                                            app_state.logger.success("p2p", "Constitution updated from network");
+                                        }
+                                    },
+                                    _ => {}
                                 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 },
                 _ => {} // Timeout or None

@@ -127,14 +127,56 @@ impl ChatBot {
     }
 
     async fn queue_response(&mut self, agent: Agent, message: Message) {
-        // Build context
-        let messages = self
-            .app_state
-            .channel_manager
-            .get_messages(ChannelType::General, 5, 0)
-            .unwrap_or_default();
+        // Build context based on channel type
+        let context = if message.channel == ChannelType::Knowledge {
+            // For #knowledge, ONLY use Consensus results (Global Knowledge)
+            if let Some(kb) = &self.app_state.knowledge_bank {
+                self.app_state.log_debug("chat_bot", "🔍 Searching Knowledge Bank for consensus");
+                match kb.semantic_search(&message.content, 3).await {
+                    Ok(results) => {
+                        if results.is_empty() {
+                            "No relevant past decisions found.".to_string()
+                        } else {
+                            let mut ctx = String::from("### Relevant Past Decisions (Consensus):\n\n");
+                            for result in results {
+                                ctx.push_str(&format!("- **Question:** {}\n  **Verdict:** {}\n\n", 
+                                    result.question, result.text_snippet));
+                            }
+                            ctx
+                        }
+                    }
+                    Err(_) => "Error retrieving knowledge.".to_string()
+                }
+            } else {
+                "Knowledge bank disabled.".to_string()
+            }
+        } else {
+            // For #general, #topic, #vote: Use Channel-Scoped RAG + Recent History
+            let mut ctx = String::new();
             
-        let context = self.build_context(&messages);
+            // 1. Get recent messages (Short-term memory)
+            let recent_messages = self
+                .app_state
+                .channel_manager
+                .get_messages(message.channel, 10, 0)
+                .unwrap_or_default();
+            
+            ctx.push_str(&self.build_context(&recent_messages));
+
+            // 2. Get relevant older messages from this channel (Long-term channel memory)
+            if let Some(kb) = &self.app_state.knowledge_bank {
+                if let Ok(rag_results) = kb.search_channel_context(message.channel, &message.content, 3).await {
+                    if !rag_results.is_empty() {
+                        ctx.push_str("\n\n### Relevant Context from this discussion:\n");
+                        for msg in rag_results {
+                            ctx.push_str(&format!("- {}\n", msg));
+                        }
+                    }
+                }
+            }
+            
+            ctx
+        };
 
         self.app_state.log_debug(
             "chat_bot",
@@ -243,19 +285,17 @@ impl ChatBot {
         context: &str,
         config: &crate::config::AppConfig,
     ) -> Result<(), String> {
-        let base_prompt = prompt::compose_system_prompt(&agent.system_prompt);
+        let system_prompt = prompt::compose_system_prompt(&agent.system_prompt);
         let prompt = if context.is_empty() {
             format!(
-                "{}\n\nLatest human message from {}:\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic.",
-                base_prompt,
+                "Latest human message from {}:\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic.",
                 msg.author,
                 msg.content,
                 agent.name
             )
         } else {
             format!(
-                "{}\n\n# Recent Conversation\n{}\n\n# Latest human message from {}\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic, grounded in the above context.",
-                base_prompt,
+                "# Recent Conversation\n{}\n\n# Latest human message from {}\n{}\n\nRespond as {}. Start your response by mentioning the participants you are addressing (e.g. @human_user, @technical_architect). Keep it concise and pragmatic, grounded in the above context.",
                 context,
                 msg.author,
                 msg.content,
@@ -278,6 +318,7 @@ impl ChatBot {
             &config.ollama_url,
             &agent.model,
             prompt,
+            Some(system_prompt),
             auth,
         )
         .await

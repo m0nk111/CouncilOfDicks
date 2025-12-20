@@ -51,6 +51,7 @@ When implementing any feature:
 ### Autonomous Work Policy
 - **Direct Action**: Prioritize automation over asking permission
 - **Use Available Tools**: Execute immediately without waiting for confirmation
+- **Reuse-First Rule**: ALWAYS search online first (GitHub/web) to see if the idea/feature already exists and can be reused or adapted, then search the local repo/workspace before writing new code.
 - **Testing Rule**: ALWAYS test solutions before declaring them fixed
 - **Keep Responses Short**: No excessive emojis or verbose explanations
 - **Never use `cat << 'EOF'`**: Create proper files instead of pasting long scripts in terminal

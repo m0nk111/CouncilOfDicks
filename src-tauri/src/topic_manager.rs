@@ -27,6 +27,12 @@ struct TopicInternalState {
     last_topic_change: SystemTime,
 }
 
+impl Default for TopicManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TopicManager {
     pub fn new() -> Self {
         Self {
@@ -132,11 +138,7 @@ impl TopicManager {
         let state = self.state.lock().unwrap();
         let now = SystemTime::now();
         let elapsed = now.duration_since(state.last_run).unwrap_or(Duration::from_secs(0)).as_secs();
-        let next_run = if elapsed < state.interval_secs {
-            state.interval_secs - elapsed
-        } else {
-            0
-        };
+        let next_run = state.interval_secs.saturating_sub(elapsed);
 
         TopicStatus {
             current_topic: state.current_topic.clone(),

@@ -48,8 +48,8 @@ graph TD
     subgraph "Phase 4: Decision"
         V -->|Blind Vote| C{Consensus?}
         C -->|Yes| R[Result Recorded]
-        C -->|No / Rejected| F[Failure Analysis]
-        F -->|Refine Options| S
+        R -->|Stored in| K[(#knowledge Bank)]
+        C -->|No| D
     end
 ```
 
@@ -102,3 +102,8 @@ graph TD
 4.  **Proposition Generator**: Implement a new prompt/function `generate_propositions(discussion_history)`.
 5.  **Voting Update**: Update `council_create_session` to accept a list of options/propositions instead of just a question.
 6.  **Deadlock Logic**: Implement the feedback loop where voting results trigger a re-synthesis if consensus fails.
+
+## 📚 Related Documentation
+
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: Explains the "Scoped Context" memory system and how the `#knowledge` bank serves as a read-only archive for consensus.
+- **[AI_RANKING_SYSTEM.md](AI_RANKING_SYSTEM.md)**: Details how agent performance in deliberations affects their reputation tier.

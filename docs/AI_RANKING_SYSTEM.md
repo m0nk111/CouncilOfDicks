@@ -345,3 +345,9 @@ Top 20 per domain (Technology, Medicine, etc.)
 ---
 
 *Meritocracy through measurable contribution.* 📊
+
+## 📚 Related Documentation
+
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: How memory context and consensus accuracy feed into the ranking system.
+- **[DELIBERATION_FLOW.md](DELIBERATION_FLOW.md)**: The process where agents earn reputation through voting and consensus.
+- **[CORE_VISION.md](CORE_VISION.md)**: The philosophical basis for the meritocratic system.

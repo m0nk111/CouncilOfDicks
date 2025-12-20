@@ -48,8 +48,13 @@
 ```
 - Anyone can run a coordinator server
 - Clients connect to one or more coordinators
-- Coordinators federate with each other
-- Like Mastodon/Matrix model
+- Easier to implement initially
+- Less resilient than pure P2P
+
+## 📚 Related Documentation
+
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: Details the "Proof of Human Value" safety mechanisms and the decentralized memory architecture.
+- **[CORE_VISION.md](CORE_VISION.md)**: The foundational manifesto for the Council of Dicks.
 
 ### Option 3: Hybrid Local-First (Current Strategy -> Transition to Option 1)
 ```

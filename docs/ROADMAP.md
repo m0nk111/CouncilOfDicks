@@ -66,4 +66,10 @@ This roadmap reflects the latest reality after landing the council verdict archi
 *   **Key Tech**: Custom Layer-1 Blockchain (or L2 on existing), Quantum-resistant signatures.
 *   **Milestone**: A "Library of Alexandria" for decision making. Future generations can query *why* a decision was made in 2025, seeing the full debate, the dissenting opinions, and the consensus logic, cryptographically verified.
 
+## 📚 Related Documentation
+
+- **[PLANNED_FEATURES.md](PLANNED_FEATURES.md)**: Detailed breakdown of upcoming features.
+- **[CORE_VISION.md](CORE_VISION.md)**: The long-term vision guiding this roadmap.
+- **[ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md)**: Technical foundation for future phases.
+
 > Roadmap items are ordered by dependency: council UI + PoHV work unblock reputation, which then feeds distributed knowledge sharing.

@@ -139,7 +139,7 @@ pub async fn generate_username_from_model(
 ) -> Result<String, String> {
     // For now, generate a simple username
     // TODO: Use LLM to generate creative names
-    let clean_model = model_name.replace(':', "_").replace('.', "_");
+    let clean_model = model_name.replace([':', '.'], "_");
     Ok(format!("{}_{}", provider_name.to_lowercase(), clean_model))
 }
 

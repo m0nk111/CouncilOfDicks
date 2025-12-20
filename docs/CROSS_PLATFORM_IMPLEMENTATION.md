@@ -48,6 +48,11 @@ Linux:   tcod (5-10MB)
 - ✅ **Auto-updates** → Built-in updater
 - ✅ **Tray icon** → Runs in background
 
+## 📚 Related Documentation
+
+- **[HEADLESS.md](HEADLESS.md)**: How the cross-platform architecture adapts to headless environments.
+- **[ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md)**: The broader architectural decisions behind choosing Tauri.
+
 ## Project Structure
 
 ```

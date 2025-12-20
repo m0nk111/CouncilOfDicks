@@ -1,3 +1,4 @@
+use crate::knowledge::KnowledgeBank;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -229,13 +230,14 @@ impl Channel {
 }
 
 /// Channel manager for all chat channels
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChannelManager {
     channels: Arc<Mutex<HashMap<ChannelType, Channel>>>,
+    knowledge_bank: Option<Arc<KnowledgeBank>>,
 }
 
 impl ChannelManager {
-    pub fn new() -> Self {
+    pub fn new(knowledge_bank: Option<Arc<KnowledgeBank>>) -> Self {
         let mut channels = HashMap::new();
         channels.insert(ChannelType::General, Channel::new(ChannelType::General));
         channels.insert(ChannelType::Human, Channel::new(ChannelType::Human));
@@ -245,6 +247,21 @@ impl ChannelManager {
 
         Self {
             channels: Arc::new(Mutex::new(channels)),
+            knowledge_bank,
+        }
+    }
+
+    /// Load history from Knowledge Bank
+    pub async fn load_history(&self) {
+        if let Some(kb) = &self.knowledge_bank {
+            let mut channels = self.channels.lock().unwrap();
+            
+            // Load for each channel type
+            for (channel_type, channel) in channels.iter_mut() {
+                if let Ok(messages) = kb.get_chat_history(*channel_type, 50).await {
+                    channel.messages = messages;
+                }
+            }
         }
     }
 
@@ -257,6 +274,18 @@ impl ChannelManager {
             .ok_or_else(|| format!("Channel {:?} not found", message.channel))?;
 
         let message_id = message.id.clone();
+        
+        // Save to DB if available (fire and forget for now, or block?)
+        // Since this is sync, we can't await. We should spawn a task or use a blocking call if critical.
+        // For now, we'll just add to memory. Ideally, we should spawn a tokio task.
+        if let Some(kb) = &self.knowledge_bank {
+            let kb_clone = kb.clone();
+            let msg_clone = message.clone();
+            tokio::spawn(async move {
+                let _ = kb_clone.save_chat_message(&msg_clone).await;
+            });
+        }
+
         channel.add_message(message)?;
 
         Ok(message_id)
@@ -339,7 +368,7 @@ impl ChannelManager {
 
 impl Default for ChannelManager {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
@@ -541,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_channel_manager() {
-        let manager = ChannelManager::new();
+        let manager = ChannelManager::new(None);
 
         // Send message to #general
         let msg = Message::new(
@@ -561,7 +590,7 @@ mod tests {
 
     #[test]
     fn test_channel_manager_reactions() {
-        let manager = ChannelManager::new();
+        let manager = ChannelManager::new(None);
 
         // Send message
         let msg = Message::new(
@@ -593,7 +622,7 @@ mod tests {
 
     #[test]
     fn test_channel_manager_system_message() {
-        let manager = ChannelManager::new();
+        let manager = ChannelManager::new(None);
 
         let msg_id = manager
             .send_system_message(ChannelType::General, "Welcome!".to_string())

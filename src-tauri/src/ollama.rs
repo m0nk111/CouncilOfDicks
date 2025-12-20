@@ -9,6 +9,8 @@ use std::time::Duration;
 pub struct OllamaRequest {
     pub model: String,
     pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
     pub stream: bool,
 }
 
@@ -39,13 +41,13 @@ impl OllamaClient {
         Self { config, logger }
     }
 
-    pub async fn ask(&self, model: &str, prompt: &str) -> Result<String, String> {
+    pub async fn ask(&self, model: &str, prompt: &str, system: Option<&str>) -> Result<String, String> {
         let auth = if let (Some(u), Some(p)) = (&self.config.ollama_username, &self.config.ollama_password) {
             Some((u.as_str(), p.as_str()))
         } else {
             None
         };
-        ask_ollama_with_auth(&self.config.ollama_url, model, prompt.to_string(), auth).await
+        ask_ollama_with_auth(&self.config.ollama_url, model, prompt.to_string(), system.map(|s| s.to_string()), auth).await
     }
 }
 
@@ -54,6 +56,7 @@ pub async fn ask_ollama_internal(
     state: &crate::state::AppState,
     model: String,
     prompt: String,
+    system: Option<String>,
 ) -> Result<String, String> {
     let config = state.get_config();
     let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
@@ -61,17 +64,18 @@ pub async fn ask_ollama_internal(
     } else {
         None
     };
-    ask_ollama_with_auth(&config.ollama_url, &model, prompt, auth).await
+    ask_ollama_with_auth(&config.ollama_url, &model, prompt, system, auth).await
 }
 
 pub async fn ask_ollama(url: &str, model: &str, prompt: String) -> Result<String, String> {
-    ask_ollama_with_auth(url, model, prompt, None).await
+    ask_ollama_with_auth(url, model, prompt, None, None).await
 }
 
 pub async fn ask_ollama_with_auth(
     url: &str,
     model: &str,
     prompt: String,
+    system: Option<String>,
     basic_auth: Option<(&str, &str)>,
 ) -> Result<String, String> {
     println!("🔍 [DEBUG] Asking Ollama: {}", prompt);
@@ -92,6 +96,7 @@ pub async fn ask_ollama_with_auth(
     let request_body = OllamaRequest {
         model: resolved_model.clone(),
         prompt,
+        system,
         stream: false,
     };
 

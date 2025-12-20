@@ -51,6 +51,12 @@ pub enum ProviderType {
 }
 ```
 
+## 📚 Related Documentation
+
+- **[ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md)**: How the provider architecture supports the decentralized vision.
+- **[PROVIDER_MANAGEMENT_UI.md](PROVIDER_MANAGEMENT_UI.md)**: UI specifications for managing these providers.
+- **[HEADLESS.md](HEADLESS.md)**: Running providers in a headless environment.
+
 ## Recommended Setup: Ollama Guardian
 
 For local deployments, we strongly recommend using **Ollama Guardian** as a proxy in front of Ollama.

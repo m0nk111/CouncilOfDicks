@@ -65,6 +65,7 @@ impl HttpServer {
     }
 
     fn build_router(self) -> Router {
+        println!("🔨 Building router with chat endpoints...");
         let mut router = Router::new()
             // Health check
             .route("/health", get(health_check))
@@ -187,11 +188,13 @@ struct OllamaAskResponse {
     response: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+// #[allow(dead_code)]
 struct ConfigResponse {
     ollama_url: String,
     ollama_model: String,
     debug_enabled: bool,
+    user_handle: String,
 }
 
 // ========================================
@@ -209,9 +212,9 @@ async fn ollama_ask(
     let config = state.get_config();
     let model = req.model.unwrap_or(config.ollama_model.clone());
 
-    let response = crate::ollama::ask_ollama_internal(&state, model, req.prompt)
+    let response = crate::ollama::ask_ollama_internal(&state, model, req.prompt, None)
         .await
-        .map_err(|e| ApiError::InternalError(e))?;
+        .map_err(ApiError::InternalError)?;
 
     Ok(Json(OllamaAskResponse { response }))
 }
@@ -234,7 +237,7 @@ async fn config_save(
     });
     
     // Persist to disk
-    payload.config.save().map_err(|e| AppError(e))?;
+    payload.config.save().map_err(AppError)?;
     
     state.log_info("http_server", "Configuration saved via HTTP API");
     Ok(Json(ApiResponse::success(())))
@@ -255,7 +258,7 @@ async fn user_handle_set(
     
     // Persist to disk
     let config = state.get_config();
-    config.save().map_err(|e| AppError(e))?;
+    config.save().map_err(AppError)?;
     
     state.log_info("http_server", &format!("User handle updated to: {}", payload.handle));
     Ok(Json(ApiResponse::success(())))
@@ -283,14 +286,15 @@ async fn generate_question(
 
 #[derive(Deserialize)]
 struct CouncilSessionRequest {
-    sessionId: String,
+    #[serde(rename = "sessionId")]
+    session_id: String,
 }
 
 async fn council_session_get(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CouncilSessionRequest>,
 ) -> Result<Json<ApiResponse<crate::protocol::CouncilSession>>, ApiError> {
-    let session = state.council_manager.get_session(&payload.sessionId)
+    let session = state.council_manager.get_session(&payload.session_id)
         .await
         .ok_or_else(|| ApiError::BadRequest("Session not found".to_string()))?;
     Ok(Json(ApiResponse::success(session)))
@@ -325,15 +329,18 @@ async fn agent_list(
 #[derive(Deserialize)]
 struct ChatMessagePayload {
     content: String,
+    channel: Option<crate::chat::ChannelType>,
 }
 
 async fn chat_message_send(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ChatMessagePayload>,
 ) -> impl IntoResponse {
+    state.log_debug("http_server", &format!("📩 Received chat message: '{}' for channel {:?}", payload.content, payload.channel));
+
     let msg = crate::chat::Message {
         id: uuid::Uuid::new_v4().to_string(),
-        channel: crate::chat::ChannelType::General,
+        channel: payload.channel.unwrap_or(crate::chat::ChannelType::General),
         author: state.get_config().user_handle,
         author_type: crate::chat::AuthorType::Human,
         content: payload.content,
@@ -366,7 +373,7 @@ async fn chat_messages_get(
     Json(payload): Json<ChatMessagesRequest>,
 ) -> Result<Json<ApiResponse<Vec<crate::chat::Message>>>, ApiError> {
     let messages = state.channel_manager.get_messages(payload.channel, payload.limit, payload.offset)
-        .map_err(|e| ApiError::InternalError(e))?;
+        .map_err(ApiError::InternalError)?;
     Ok(Json(ApiResponse::success(messages)))
 }
 

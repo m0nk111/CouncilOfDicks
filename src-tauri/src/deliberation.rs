@@ -238,19 +238,19 @@ impl DeliberationEngine {
         let system_directive = prompt::compose_system_prompt(&member.system_prompt);
         let prompt = if round_number == 1 {
             format!(
-                "{}\n\nQuestion: {}\n\nProvide your analysis and recommendation.",
-                system_directive, question
+                "Question: {}\n\nProvide your analysis and recommendation.",
+                question
             )
         } else {
             format!(
-                "{}\n\nQuestion: {}\n\nPrevious discussion:\n{}\n\nProvide your response considering the previous arguments.",
-                system_directive, question, context
+                "Question: {}\n\nPrevious discussion:\n{}\n\nProvide your response considering the previous arguments.",
+                question, context
             )
         };
 
         // Query Ollama
         let client = ollama_client.lock().await;
-        let response = client.ask(&member.model, &prompt).await?;
+        let response = client.ask(&member.model, &prompt, Some(&system_directive)).await?;
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

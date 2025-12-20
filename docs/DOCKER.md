@@ -259,3 +259,8 @@ docker run --rm \
 
 Issues: https://github.com/m0nk111/CouncilOfDicks/issues
 Docs: https://github.com/m0nk111/CouncilOfDicks/tree/main/docs
+
+## 📚 Related Documentation
+
+- **[HEADLESS.md](HEADLESS.md)**: Running the application without a GUI, which is typical for Docker deployments.
+- **[AI_PROVIDERS.md](AI_PROVIDERS.md)**: Configuring external providers like Ollama in a containerized setup.

@@ -90,13 +90,10 @@ async fn ask_ollama(question: String, state: tauri::State<'_, AppState>) -> Resu
         metrics.start_request()
     };
 
-    let tcod_prompt = format!(
-        "{}\n\n# Human Question\n{}",
-        compose_system_prompt(""),
-        question
-    );
+    let system_prompt = compose_system_prompt("");
+    let user_prompt = format!("# Human Question\n{}", question);
 
-    let result = ollama::ask_ollama_internal(&state, config.ollama_model.clone(), tcod_prompt).await;
+    let result = ollama::ask_ollama_internal(&state, config.ollama_model.clone(), user_prompt, Some(system_prompt)).await;
 
     // Record result and sign response
     match &result {
@@ -114,7 +111,7 @@ async fn ask_ollama(question: String, state: tauri::State<'_, AppState>) -> Resu
                 "ask_ollama",
                 &format!(
                     "✍️ Response signed with key: {}...",
-                    signed.public_key[..16].to_string()
+                    &signed.public_key[..16]
                 ),
             );
         }
@@ -307,7 +304,7 @@ async fn council_add_response(
         "council_add_response",
         &format!(
             "✍️ Signed with key: {}...",
-            signed.public_key[..16].to_string()
+            &signed.public_key[..16]
         ),
     );
 
@@ -1073,7 +1070,7 @@ async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, 
 
     let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
 
-    ollama::ask_ollama_internal(&state, model, prompt).await.map(|q| q.trim().to_string())
+    ollama::ask_ollama_internal(&state, model, prompt, None).await.map(|q| q.trim().to_string())
 }
 
 #[tauri::command]

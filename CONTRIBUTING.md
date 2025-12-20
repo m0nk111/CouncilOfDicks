@@ -32,6 +32,12 @@ Be excellent to each other. We're building a decentralized AI democracy, not a d
 6. **Format your code**: `cargo fmt && pnpm format`
 7. **Submit PR** with clear description
 
+## 📚 Related Documentation
+
+- **[DEVELOPMENT.md](DEVELOPMENT.md)**: Technical setup guide for contributors.
+- **[CORE_VISION.md](docs/CORE_VISION.md)**: Understanding the project's philosophy is crucial for contributing.
+- **[ROADMAP.md](docs/ROADMAP.md)**: Check what's planned before suggesting new features.
+
 ## Development Setup
 
 ```bash

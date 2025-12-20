@@ -1,5 +1,8 @@
 use axum::{
-    extract::{Json, Query, State},
+    extract::{
+        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
+        Json, Query, State,
+    },
     http::{StatusCode, Method, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -8,6 +11,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
@@ -396,7 +400,7 @@ pub async fn generate_question(
 
     let prompt = config.question_generation_prompt.clone();
 
-    match crate::ollama::ask_ollama_internal(&state.app_state, model, prompt).await {
+    match crate::ollama::ask_ollama_internal(&state.app_state, model, prompt, None).await {
         Ok(question) => Ok(Json(question.trim().to_string())),
         Err(e) => {
             eprintln!("❌ Failed to generate question: {}", e);
@@ -457,6 +461,7 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/chat/status", get(get_chat_status))
         .route("/api/council/generate_question", post(generate_question))
         .route("/api/user/handle", post(set_user_handle))
+        .route("/ws/chat", get(websocket_handler))
         .layer(cors)
         .with_state(state)
 }
@@ -482,4 +487,71 @@ pub async fn start_web_server(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+// ========================================
+// WebSocket Handler
+// ========================================
+
+/// WebSocket upgrade handler
+async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<WebState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| websocket_connection(socket, state.app_state))
+}
+
+/// Handle individual WebSocket connection
+async fn websocket_connection(mut socket: WebSocket, state: Arc<AppState>) {
+    let mut rx = state.websocket_broadcast.subscribe();
+
+    // Send welcome message
+    let welcome = serde_json::json!({
+        "type": "welcome",
+        "message": "Connected to Council Of Dicks chat"
+    });
+
+    if socket
+        .send(WsMessage::Text(welcome.to_string()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+
+    // Forward broadcast messages to this client
+    // We need to split the socket to handle concurrent read/write if we want to support incoming messages later
+    // But for now, we just need to send messages from the broadcast channel
+    
+    // Note: In axum 0.7, we don't need to split explicitly for simple cases, 
+    // but since we want to listen to rx loop, we should spawn a task.
+    
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(chat_msg) => {
+                    // Serialize and send to client
+                    let json = match serde_json::to_string(&chat_msg) {
+                        Ok(j) => j,
+                        Err(e) => {
+                            eprintln!("❌ Failed to serialize message: {}", e);
+                            continue;
+                        }
+                    };
+
+                    if socket.send(WsMessage::Text(json)).await.is_err() {
+                        // Client disconnected
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    eprintln!("⚠️ WebSocket client lagged, skipped {} messages", skipped);
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+            }
+        }
+        // println!("🔌 WebSocket client disconnected");
+    });
 }

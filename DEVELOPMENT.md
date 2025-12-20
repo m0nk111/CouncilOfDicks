@@ -47,6 +47,12 @@ xcode-select --install
 # https://visualstudio.microsoft.com/visual-cpp-build-tools/
 ```
 
+## 📚 Related Documentation
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Guidelines for submitting your changes.
+- **[HEADLESS.md](docs/HEADLESS.md)**: Development on headless servers.
+- **[DOCKER.md](docs/DOCKER.md)**: Containerized development workflow.
+
 ### 2. Clone & Install
 
 ```bash
@@ -95,8 +101,19 @@ cargo fmt --manifest-path=src-tauri/Cargo.toml
 cargo clippy --manifest-path=src-tauri/Cargo.toml
 ```
 
-**Dev server:** http://localhost:5174  
+**Dev server:** http://localhost:5175  
 **Hot reload:** Enabled for both Rust and frontend
+
+### LAN access (browser on another device)
+
+If you open the UI from another machine (e.g. `http://192.168.1.5:5175`) and get “Kan geen verbinding maken”, the dev server is either not running or it is only bound to localhost.
+
+- Start dev: `pnpm tauri:dev` (or `pnpm dev` for web-only)
+- Start dev: `pnpm tauri:dev` (Tauri) or `./scripts/dev-web.sh` (web-only; starts backend + Vite)
+- Ensure Vite binds to all interfaces (already configured via `server.host: true` in `vite.config.ts`)
+- If you use a firewall, allow TCP `5175`
+
+If the UI loads but you see “Failed to load messages”, the Rust web server on `:8080` is not running. In web-mode the frontend calls `/api/...` and Vite proxies that to `http://127.0.0.1:8080`.
 
 ## Project Architecture
 

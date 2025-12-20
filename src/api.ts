@@ -20,10 +20,11 @@ async function tauriInvoke<T>(command: string, args?: Record<string, any>): Prom
 // Re-export for convenience
 export { isTauriEnvironment };
 
-// API base URL for web mode
-const API_BASE_URL = window.location.hostname === "localhost" 
-  ? "http://localhost:8080" 
-  : `http://${window.location.hostname}:8080`;
+// API base URL for web mode.
+// Use same-origin relative URLs so this works:
+// - behind Vite dev proxy (5175 -> 8080)
+// - when served directly by the Rust web server (8080)
+const API_BASE_URL = "";
 
 export interface AppConfig {
   ollama_url: string;
@@ -355,6 +356,10 @@ export async function chatSendMessage(
         signature,
       }),
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
     const result = await response.json();
     if (!result.success) {
       throw new Error(result.error || "Failed to send message");
@@ -377,9 +382,13 @@ export async function chatGetMessages(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel, limit, offset }),
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
     const result = await response.json();
     if (!result.success) {
-      throw new Error(result.error || "Failed to get messages");
+      throw new Error(result.error || "Failed to load messages");
     }
     return result.data;
   }

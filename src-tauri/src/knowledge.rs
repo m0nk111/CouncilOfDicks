@@ -207,19 +207,42 @@ impl KnowledgeBank {
         .await
         .map_err(|e| format!("Failed to create reputation table: {}", e))?;
 
-        // FTS5 for keyword search fallback
+        // Chat logs table for per-channel RAG/Context
         sqlx::query(
             r#"
-            CREATE VIRTUAL TABLE IF NOT EXISTS deliberations_fts 
-            USING fts5(question, consensus, content='deliberations', content_rowid='rowid')
+            CREATE TABLE IF NOT EXISTS chat_logs (
+                id TEXT PRIMARY KEY,
+                channel TEXT NOT NULL,
+                author TEXT NOT NULL,
+                author_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                signature TEXT,
+                reply_to TEXT
+            )
             "#,
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| format!("Failed to create FTS table: {}", e))?;
+        .map_err(|e| format!("Failed to create chat_logs table: {}", e))?;
+
+        // Chat embeddings table (future use for semantic search)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS chat_embeddings (
+                message_id TEXT PRIMARY KEY,
+                embedding BLOB NOT NULL,
+                dimension INTEGER NOT NULL,
+                FOREIGN KEY (message_id) REFERENCES chat_logs(id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to create chat_embeddings table: {}", e))?;
 
         self.logger
-            .log(LogLevel::Success, "knowledge", "✅ Database schema ready");
+            .log(LogLevel::Success, "knowledge", "✅ Database schema initialized");
 
         Ok(())
     }
@@ -258,7 +281,7 @@ impl KnowledgeBank {
         }
 
         // Generate and store embeddings for RAG
-        self.generate_embeddings(&result).await?;
+        self.generate_embeddings(result).await?;
 
         self.logger.log(
             LogLevel::Success,
@@ -402,69 +425,121 @@ impl KnowledgeBank {
         Ok(())
     }
 
-    /// Generate embedding for text via Ollama
+    /// Generate embedding using Ollama
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, String> {
-        let endpoint = format!("{}/api/embeddings", self.ollama_url);
-
+        // Use the existing Ollama client
+        // Note: This assumes the embedding model is pulled and available
+        let client = reqwest::Client::new();
+        let url = format!("{}/api/embeddings", self.ollama_url);
+        
         let payload = serde_json::json!({
             "model": self.embedding_model,
             "prompt": text
         });
 
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&endpoint)
+        let res = client
+            .post(&url)
             .json(&payload)
             .send()
             .await
-            .map_err(|e| format!("Failed to call Ollama embeddings: {}", e))?;
+            .map_err(|e| format!("Failed to call Ollama: {}", e))?;
 
-        if !response.status().is_success() {
-            return Err(format!("Ollama returned error: {}", response.status()));
+        if !res.status().is_success() {
+            return Err(format!("Ollama error: {}", res.status()));
         }
 
-        let result: serde_json::Value = response
+        let body: serde_json::Value = res
             .json()
             .await
-            .map_err(|e| format!("Failed to parse embedding response: {}", e))?;
+            .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
 
-        let embedding = result["embedding"]
+        let embedding = body["embedding"]
             .as_array()
-            .ok_or("No embedding in response")?
+            .ok_or("Invalid embedding format")?
             .iter()
-            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .map(|v| v.as_f64().unwrap() as f32)
             .collect();
 
         Ok(embedding)
     }
 
-    /// Semantic search with RAG
-    pub async fn semantic_search(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<SearchResult>, String> {
+    /// Store embedding in DB
+    async fn store_embedding(&self, chunk_id: &str, embedding: &[f32]) -> Result<(), String> {
+        let embedding_bytes = Self::serialize_embedding(embedding);
+        
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO embeddings (chunk_id, embedding, dimension)
+            VALUES (?, ?, ?)
+            "#,
+        )
+        .bind(chunk_id)
+        .bind(embedding_bytes)
+        .bind(embedding.len() as i64)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to store embedding: {}", e))?;
+
+        Ok(())
+    }
+
+    fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(embedding.len() * 4);
+        for val in embedding {
+            bytes.extend_from_slice(&val.to_le_bytes());
+        }
+        bytes
+    }
+
+    fn deserialize_embedding(bytes: &[u8]) -> Vec<f32> {
+        bytes
+            .chunks(4)
+            .map(|chunk| {
+                let mut buf = [0u8; 4];
+                buf.copy_from_slice(chunk);
+                f32::from_le_bytes(buf)
+            })
+            .collect()
+    }
+
+    fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+        let dot_product: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+        let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+        
+        if norm_a == 0.0 || norm_b == 0.0 {
+            0.0
+        } else {
+            dot_product / (norm_a * norm_b)
+        }
+    }
+
+    fn truncate(s: &str, max_chars: usize) -> String {
+        if s.len() <= max_chars {
+            s.to_string()
+        } else {
+            format!("{}...", &s[..max_chars])
+        }
+    }
+
+    /// Search for relevant deliberations (Semantic Search)
+    pub async fn semantic_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, String> {
         self.logger.log(
-            LogLevel::Info,
+            LogLevel::Debug,
             "knowledge",
-            &format!("🔍 Semantic search: {}", query),
+            &format!("🔍 Searching for: {}", query),
         );
 
-        // Generate query embedding
         let query_embedding = self.generate_embedding(query).await?;
-
-        // Retrieve all embeddings and compute similarity
+        
+        // Fetch all embeddings (naive approach for MVP)
+        // In production, use vector extension or specialized DB
         let rows = sqlx::query(
             r#"
-            SELECT 
-                tc.deliberation_id,
-                d.question,
-                tc.text,
-                e.embedding,
-                e.dimension
-            FROM text_chunks tc
-            JOIN embeddings e ON tc.id = e.chunk_id
-            JOIN deliberations d ON tc.deliberation_id = d.id
+            SELECT e.embedding, t.deliberation_id, t.text, d.question
+            FROM embeddings e
+            JOIN text_chunks t ON e.chunk_id = t.id
+            JOIN deliberations d ON t.deliberation_id = d.id
             "#,
         )
         .fetch_all(&self.pool)
@@ -472,6 +547,7 @@ impl KnowledgeBank {
         .map_err(|e| format!("Failed to fetch embeddings: {}", e))?;
 
         let mut results = Vec::new();
+
         for row in rows {
             let delib_id: String = row.get("deliberation_id");
             let question: String = row.get("question");
@@ -502,6 +578,22 @@ impl KnowledgeBank {
         Ok(results)
     }
 
+    /// Build RAG context string from query
+    pub async fn build_rag_context(&self, query: &str, limit: usize) -> Result<RAGContext, String> {
+        let results = self.semantic_search(query, limit).await?;
+        
+        let mut context_text = String::from("### Relevant Past Decisions:\n\n");
+        for result in &results {
+            context_text.push_str(&format!("- **Question:** {}\n  **Snippet:** {}\n\n", 
+                result.question, result.text_snippet));
+        }
+        
+        Ok(RAGContext {
+            relevant_decisions: results,
+            context_text,
+        })
+    }
+
     /// Get a specific deliberation by ID
     pub async fn get_deliberation(
         &self,
@@ -528,7 +620,7 @@ impl KnowledgeBank {
 
         let session_id: String = row.get("id");
         let question: String = row.get("question");
-        let consensus: f32 = row.get("consensus");
+        let consensus: Option<String> = row.get("consensus");
         let created_at: i64 = row.get("created_at");
         let completed: bool = row.get("completed");
 
@@ -554,7 +646,7 @@ impl KnowledgeBank {
             // Get responses for this round
             let response_rows = sqlx::query(
                 r#"
-                SELECT agent_name, response_text, vote
+                SELECT member_name, model, response, timestamp
                 FROM responses
                 WHERE round_id = ?
                 "#,
@@ -566,14 +658,16 @@ impl KnowledgeBank {
 
             let mut responses = Vec::new();
             for resp_row in response_rows {
-                let agent_name: String = resp_row.get("agent_name");
-                let response_text: String = resp_row.get("response_text");
+                let member_name: String = resp_row.get("member_name");
+                let model: String = resp_row.get("model");
+                let response: String = resp_row.get("response");
+                let timestamp: i64 = resp_row.get("timestamp");
 
                 responses.push(crate::deliberation::MemberResponse {
-                    member_name: agent_name,
-                    model: "unknown".to_string(), // Not stored in DB
-                    response: response_text,
-                    timestamp: created_at as u64,
+                    member_name,
+                    model,
+                    response,
+                    timestamp: timestamp as u64,
                 });
             }
 
@@ -583,80 +677,14 @@ impl KnowledgeBank {
             });
         }
 
-        // Generate consensus text from score
-        let consensus_text = if consensus >= 0.67 {
-            Some(format!("Consensus reached ({:.0}%)", consensus * 100.0))
-        } else {
-            None
-        };
-
         Ok(DeliberationResult {
             session_id,
             question,
+            consensus,
             rounds,
-            consensus: consensus_text,
             created_at: created_at as u64,
             completed,
         })
-    }
-
-    /// Build RAG context for a question
-    pub async fn build_rag_context(
-        &self,
-        question: &str,
-        top_k: usize,
-    ) -> Result<RAGContext, String> {
-        let relevant = self.semantic_search(question, top_k).await?;
-
-        let mut context_text = String::from("# Relevant Past Decisions\n\n");
-        for (i, result) in relevant.iter().enumerate() {
-            context_text.push_str(&format!(
-                "## Decision {}: {}\n\n{}\n\n---\n\n",
-                i + 1,
-                result.question,
-                result.text_snippet
-            ));
-        }
-
-        Ok(RAGContext {
-            relevant_decisions: relevant,
-            context_text,
-        })
-    }
-
-    /// Cosine similarity between two vectors
-    fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-        let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-        let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-        let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-
-        if norm_a == 0.0 || norm_b == 0.0 {
-            0.0
-        } else {
-            dot / (norm_a * norm_b)
-        }
-    }
-
-    /// Serialize embedding to bytes
-    fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
-        embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
-    }
-
-    /// Deserialize embedding from bytes
-    fn deserialize_embedding(bytes: &[u8]) -> Vec<f32> {
-        bytes
-            .chunks_exact(4)
-            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-            .collect()
-    }
-
-    /// Truncate text to max length
-    fn truncate(text: &str, max_len: usize) -> String {
-        if text.len() <= max_len {
-            text.to_string()
-        } else {
-            format!("{}...", &text[..max_len])
-        }
     }
 
     /// Get all deliberations (for debugging)
@@ -921,6 +949,211 @@ impl KnowledgeBank {
 
         Ok(sessions)
     }
+
+    /// Save a chat message to the knowledge bank
+    pub async fn save_chat_message(&self, message: &crate::chat::Message) -> Result<(), String> {
+        sqlx::query(
+            r#"
+            INSERT INTO chat_logs (id, channel, author, author_type, content, timestamp, signature, reply_to)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&message.id)
+        .bind(message.channel.as_str())
+        .bind(&message.author)
+        .bind(format!("{:?}", message.author_type)) // Serialize enum as string
+        .bind(&message.content)
+        .bind(message.timestamp.timestamp())
+        .bind(&message.signature)
+        .bind(&message.reply_to)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to save chat message: {}", e))?;
+
+        // Generate embedding for RAG (per-channel context)
+        // Only for non-system messages to save resources
+        if message.author_type != crate::chat::AuthorType::System {
+            if let Ok(embedding) = self.generate_embedding(&message.content).await {
+                // Store in chat_embeddings table
+                let embedding_bytes = Self::serialize_embedding(&embedding);
+                sqlx::query(
+                    r#"
+                    INSERT OR REPLACE INTO chat_embeddings (message_id, embedding, dimension)
+                    VALUES (?, ?, ?)
+                    "#,
+                )
+                .bind(&message.id)
+                .bind(&embedding_bytes)
+                .bind(embedding.len() as i64)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| format!("Failed to store chat embedding: {}", e))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get recent chat messages for a channel (Context)
+    pub async fn get_chat_history(
+        &self,
+        channel: crate::chat::ChannelType,
+        limit: usize,
+    ) -> Result<Vec<crate::chat::Message>, String> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, channel, author, author_type, content, timestamp, signature, reply_to
+            FROM chat_logs
+            WHERE channel = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(channel.as_str())
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to fetch chat history: {}", e))?;
+
+        let mut messages = Vec::new();
+        for row in rows {
+            let channel_str: String = row.get("channel");
+            let author_type_str: String = row.get("author_type");
+            let timestamp_int: i64 = row.get("timestamp");
+
+            let channel_type = crate::chat::ChannelType::from_str(&channel_str)
+                .ok_or_else(|| format!("Invalid channel type: {}", channel_str))?;
+
+            let author_type = match author_type_str.as_str() {
+                "Human" => crate::chat::AuthorType::Human,
+                "AI" => crate::chat::AuthorType::AI,
+                "System" => crate::chat::AuthorType::System,
+                _ => crate::chat::AuthorType::Human, // Default fallback
+            };
+
+            let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp_int, 0)
+                .ok_or("Invalid timestamp")?;
+
+            messages.push(crate::chat::Message {
+                id: row.get("id"),
+                channel: channel_type,
+                author: row.get("author"),
+                author_type,
+                content: row.get("content"),
+                timestamp,
+                signature: row.get("signature"),
+                reply_to: row.get("reply_to"),
+                reactions: Vec::new(), // Reactions not persisted yet
+            });
+        }
+
+        // Return in chronological order (oldest first)
+        messages.reverse();
+        Ok(messages)
+    }
+
+    /// Add a text chunk manually (e.g. for consensus results)
+    pub async fn add_text_chunk(
+        &self,
+        id: &str,
+        deliberation_id: &str,
+        text: &str,
+        chunk_type: ChunkType,
+    ) -> Result<(), String> {
+        // Serialize chunk type
+        let chunk_type_str = match chunk_type {
+            ChunkType::Question => "Question",
+            ChunkType::Response { .. } => "Response",
+            ChunkType::Consensus => "Consensus",
+        };
+
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO text_chunks (id, deliberation_id, text, chunk_type)
+            VALUES (?, ?, ?, ?)
+            "#,
+        )
+        .bind(id)
+        .bind(deliberation_id)
+        .bind(text)
+        .bind(chunk_type_str)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to add text chunk: {}", e))?;
+
+        // Generate embedding (async/background ideally, but inline for now)
+        if let Ok(embedding) = self.generate_embedding(text).await {
+            self.store_embedding(id, &embedding).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Search chat history for a specific channel (Scoped RAG)
+    pub async fn search_channel_context(
+        &self,
+        channel: crate::chat::ChannelType,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<String>, String> {
+        let query_embedding = self.generate_embedding(query).await?;
+        
+        // Join chat_logs and chat_embeddings, filter by channel
+        let rows = sqlx::query(
+            r#"
+            SELECT c.content, e.embedding
+            FROM chat_logs c
+            JOIN chat_embeddings e ON c.id = e.message_id
+            WHERE c.channel = ?
+            "#,
+        )
+        .bind(channel.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to fetch channel embeddings: {}", e))?;
+
+        let mut results = Vec::new();
+
+        for row in rows {
+            let content: String = row.get("content");
+            let embedding_bytes: Vec<u8> = row.get("embedding");
+            let embedding = Self::deserialize_embedding(&embedding_bytes);
+            
+            let similarity = Self::cosine_similarity(&query_embedding, &embedding);
+            results.push((content, similarity));
+        }
+
+        // Sort by similarity
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        results.truncate(limit);
+
+        Ok(results.into_iter().map(|(content, _)| content).collect())
+    }
+
+    /// Clear chat context for a channel (Reset Period)
+    pub async fn clear_channel_context(&self, channel: crate::chat::ChannelType) -> Result<(), String> {
+        // Delete embeddings first (foreign key)
+        sqlx::query(
+            r#"
+            DELETE FROM chat_embeddings 
+            WHERE message_id IN (SELECT id FROM chat_logs WHERE channel = ?)
+            "#,
+        )
+        .bind(channel.as_str())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Failed to clear chat embeddings: {}", e))?;
+        
+        self.logger.log(
+            LogLevel::Info,
+            "knowledge",
+            &format!("🧹 Cleared RAG context for #{}", channel.as_str()),
+        );
+
+        Ok(())
+    }
+
+    // Removed duplicate store_embedding
 }
 
 #[cfg(test)]

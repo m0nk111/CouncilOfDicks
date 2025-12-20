@@ -32,7 +32,7 @@ A **decentralized P2P network** where multiple AI models deliberate until they r
 - Ed25519 cryptographic signatures (response authentication)
 - MCP server integration (JSON-RPC 2.0 on port 9001)
 - Comprehensive logging & metrics (debug mode + performance tracking)
-- **104 backend tests passing**
+- **105 backend tests passing**
 
 ⏳ **Next Phase (v0.7.0+):** *(see also `docs/ROADMAP.md` for the detailed plan)*
 - **Council UI + verdict timeline**: Svelte management panel to inspect sessions, stream verdicts from the new store, and manage agent pools inline
@@ -613,8 +613,7 @@ Comprehensive documentation available in the `docs/` folder:
 - [SAFETY_AND_MEMORY.md](docs/SAFETY_AND_MEMORY.md) - Safety systems and eternal memory
 
 ### Technical Architecture
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Overall system architecture
-- [P2P.md](docs/P2P.md) - P2P networking implementation (libp2p)
+- [ARCHITECTURE_DISCUSSION.md](docs/ARCHITECTURE_DISCUSSION.md) - Overall system architecture and P2P design
 - [CRYPTO.md](docs/CRYPTO.md) - Cryptographic signatures (Ed25519) ⭐ NEW
 - [MCP.md](docs/MCP.md) - MCP server integration ⭐ NEW
 

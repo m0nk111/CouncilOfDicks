@@ -228,6 +228,28 @@ impl CouncilSessionManager {
                 // Save to DB
                 if let Some(kb) = &self.knowledge_bank {
                     let _ = kb.save_session(session).await;
+                    
+                    // Post result to #knowledge channel
+                    let message = format!(
+                        "🏛️ **Consensus Reached**\n\n**Question:** {}\n**Verdict:** {}\n**Support:** {}/{} votes",
+                        session.question,
+                        vote,
+                        count,
+                        total_votes
+                    );
+                    
+                    // We need to access ChannelManager here, but CouncilSessionManager doesn't have it.
+                    // We should probably return a "ConsensusEvent" or similar that the caller handles.
+                    // Or, we can add a method to KnowledgeBank to "announce" it if we want to keep it coupled.
+                    // For now, let's just ensure it's saved to the DB as a "Knowledge" item.
+                    
+                    // Create a text chunk for RAG
+                    let _ = kb.add_text_chunk(
+                        &session.id,
+                        &session.id, // Use session ID as chunk ID for now
+                        &format!("Question: {}\nVerdict: {}", session.question, vote),
+                        crate::knowledge::ChunkType::Consensus,
+                    ).await;
                 }
 
                 return Ok(Some(vote.clone()));
@@ -442,11 +464,12 @@ impl CouncilSessionManager {
         auth: Option<(String, String)>,
     ) -> Result<(), String> {
         // Build prompt with agent's system context
-        let prompt = agent.build_prompt(question, None);
+        let system_prompt = crate::prompt::compose_system_prompt(&agent.system_prompt);
+        let prompt = format!("Question: {}\n\nProvide your analysis and recommendation.", question);
 
         // Call Ollama API
         let auth_ref = auth.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
-        let response = crate::ollama::ask_ollama_with_auth(ollama_url, &agent.model, prompt, auth_ref).await?;
+        let response = crate::ollama::ask_ollama_with_auth(ollama_url, &agent.model, prompt, Some(system_prompt), auth_ref).await?;
 
         // Add response to session
         self.add_response(

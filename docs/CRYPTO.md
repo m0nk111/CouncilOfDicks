@@ -368,3 +368,8 @@ cargo test test_wrong_signature
 - Reputation system for trust
 - Rate limiting for DoS protection
 - Input validation for all data
+
+## 📚 Related Documentation
+
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: How cryptographic signatures enforce the "Human Presence Proof".
+- **[DELIBERATION_FLOW.md](DELIBERATION_FLOW.md)**: How signatures are used in the blind voting commitment scheme.

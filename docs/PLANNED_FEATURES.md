@@ -25,6 +25,12 @@ Instead of the user manually configuring every aspect of an agent (name, handle,
 ### Vision Alignment
 This feature supports the **Symbiotic Agents** goal (see `CORE_VISION.md`). By allowing agents to define their own identity within human-set boundaries, we move from "configuring tools" to "onboarding colleagues."
 
+## 📚 Related Documentation
+
+- **[ROADMAP.md](ROADMAP.md)**: See where these features fit into the release schedule.
+- **[UI_UX_SPECS.md](UI_UX_SPECS.md)**: How these features will be presented to the user.
+- **[AI_RANKING_SYSTEM.md](AI_RANKING_SYSTEM.md)**: How self-named agents will earn reputation.
+
 ## 🐦 Twitter-Style Mentions & Interaction
 
 **Status:** Implemented (Basic), Enhancements Planned

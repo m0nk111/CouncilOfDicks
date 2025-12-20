@@ -29,6 +29,12 @@ Council Of Dicks
 - **Critical Thinking**: Council members challenge each other constructively
 - **Human-Centric**: Always clear that humans are in control
 
+## 📚 Related Documentation
+
+- **[CHAT_INTERFACE.md](CHAT_INTERFACE.md)**: Detailed breakdown of the chat channels and their purposes.
+- **[PLANNED_FEATURES.md](PLANNED_FEATURES.md)**: Upcoming UI enhancements like self-naming agents.
+- **[SAFETY_AND_MEMORY.md](SAFETY_AND_MEMORY.md)**: How the UI reflects safety mechanisms like the heartbeat timer.
+
 ## Chat Interface
 
 ### Session Start

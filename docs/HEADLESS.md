@@ -80,3 +80,8 @@ cargo test
 ❌ GUI requires display (expected on headless server)
 
 **Next Step:** Test full UI on desktop system or use Xvfb for CI.
+
+## 📚 Related Documentation
+
+- **[DOCKER.md](DOCKER.md)**: How to run the application in a containerized environment.
+- **[AI_PROVIDERS.md](AI_PROVIDERS.md)**: Configuring providers in a headless setup.

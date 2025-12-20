@@ -60,7 +60,7 @@ impl SigningIdentity {
     /// Save keypair to file
     pub fn save(&self, path: PathBuf) -> Result<(), String> {
         let bytes = self.signing_key.to_bytes();
-        fs::write(&path, &bytes).map_err(|e| format!("Failed to write keypair: {}", e))?;
+        fs::write(&path, bytes).map_err(|e| format!("Failed to write keypair: {}", e))?;
 
         Ok(())
     }

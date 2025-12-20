@@ -13,6 +13,8 @@ use std::time::{Duration, Instant};
 struct OllamaRequest {
     model: String,
     prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
     stream: bool,
 }
 
@@ -102,16 +104,16 @@ impl AIProvider for OllamaProvider {
 
         let endpoint = format!("{}/api/generate", self.base_url);
 
-        // Build prompt with immutable TCOD context + optional role details
-        let system_section = match request.system_prompt {
-            Some(system) => prompt::compose_system_prompt(&system),
+        // Use system prompt if provided, otherwise default to TCOD context
+        let system_prompt = match request.system_prompt {
+            Some(system) => system, // Caller is responsible for composing it (e.g. topic_manager calls compose_system_prompt)
             None => prompt::compose_system_prompt(""),
         };
-        let full_prompt = format!("{}\n\n{}", system_section, request.prompt);
 
         let ollama_request = OllamaRequest {
             model: request.model.clone(),
-            prompt: full_prompt,
+            prompt: request.prompt,
+            system: Some(system_prompt),
             stream: false,
         };
 
@@ -143,10 +145,14 @@ impl AIProvider for OllamaProvider {
             .await
             .map_err(|e| ProviderError::InternalError(e.to_string()))?;
 
+        let preview_len = std::cmp::min(ollama_response.response.len(), 100);
+        let preview = &ollama_response.response[..preview_len];
+        let suffix = if ollama_response.response.len() > 100 { "..." } else { "" };
+
         self.logger.log(
             LogLevel::Success,
             "ollama_provider",
-            &format!("✅ Generated {} chars", ollama_response.response.len()),
+            &format!("✅ Generated {} chars: '{}{}'", ollama_response.response.len(), preview.replace('\n', " "), suffix),
         );
 
         Ok(GenerationResponse {
