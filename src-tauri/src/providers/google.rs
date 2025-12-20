@@ -7,6 +7,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
+
+/// Minimum time between requests to avoid rate limiting (4 seconds = 15 RPM safe)
+const MIN_REQUEST_INTERVAL_MS: u64 = 4000;
 
 // ============================================================================
 // Google Gemini API structures
@@ -127,17 +131,20 @@ struct GeminiModelInfo {
 // Google Gemini Provider Implementation
 // ============================================================================
 
-/// Google Gemini AI provider
+/// Google Gemini AI provider with built-in rate limiting
 pub struct GoogleProvider {
     api_key: String,
     default_model: String,
     embedding_model: String,
     timeout: Duration,
     logger: Arc<Logger>,
+    /// Track last request time for rate limiting
+    last_request: Arc<Mutex<Option<Instant>>>,
 }
 
 impl GoogleProvider {
     /// Create new Google Gemini provider
+    /// Default model is gemini-2.5-flash (best free tier performance)
     pub fn new(
         api_key: String,
         default_model: String,
@@ -152,10 +159,29 @@ impl GoogleProvider {
         Self {
             api_key,
             default_model,
-            embedding_model: "text-embedding-004".to_string(),
+            embedding_model: "gemini-embedding-001".to_string(), // Updated embedding model
             timeout: Duration::from_secs(120),
             logger,
+            last_request: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Wait for rate limit if needed (ensures MIN_REQUEST_INTERVAL_MS between requests)
+    async fn wait_for_rate_limit(&self) {
+        let mut last = self.last_request.lock().await;
+        if let Some(last_time) = *last {
+            let elapsed = last_time.elapsed().as_millis() as u64;
+            if elapsed < MIN_REQUEST_INTERVAL_MS {
+                let wait_time = MIN_REQUEST_INTERVAL_MS - elapsed;
+                self.logger.log(
+                    LogLevel::Debug,
+                    "google_provider",
+                    &format!("⏳ [Google] Rate limit: waiting {}ms before next request", wait_time),
+                );
+                tokio::time::sleep(Duration::from_millis(wait_time)).await;
+            }
+        }
+        *last = Some(Instant::now());
     }
 
     /// Set embedding model
@@ -197,6 +223,9 @@ impl AIProvider for GoogleProvider {
         &self,
         request: GenerationRequest,
     ) -> Result<GenerationResponse, ProviderError> {
+        // Apply rate limiting before making request
+        self.wait_for_rate_limit().await;
+
         self.logger.log(
             LogLevel::Debug,
             "google_provider",
@@ -311,6 +340,9 @@ impl AIProvider for GoogleProvider {
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f32>, ProviderError> {
+        // Apply rate limiting before making request
+        self.wait_for_rate_limit().await;
+
         self.logger.log(
             LogLevel::Debug,
             "google_provider",

@@ -59,8 +59,8 @@
     "name": "Gemini Flash",
     "handle": "gemini_flash",
     "provider": "google",
-    "model": "gemini-1.5-flash",
-    "system_prompt": "You are Gemini Flash, a fast and efficient Google AI agent. You excel at quick analysis, multi-modal understanding, and synthesizing information rapidly. Get to the point quickly.",
+    "model": "gemini-2.5-flash",
+    "system_prompt": "You are Gemini Flash, a fast and intelligent Google AI agent powered by Gemini 2.5 Flash. You excel at quick analysis, reasoning, multi-modal understanding, and synthesizing information rapidly. Get to the point quickly.",
     "metadata": { "role": "google_agent" }
   },
   {
