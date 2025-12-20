@@ -10,6 +10,7 @@
     councilListSessions,
     councilGenerateQuestion,
     agentList,
+    agentResetIdentity,
     chatGetStatus,
     topicGetStatus,
     setUserHandle,
@@ -247,11 +248,32 @@
     return `${response.slice(0, maxLength).trim()}…`;
   }
 
+  let resettingIdentity: string | null = null; // Track which agent is being reset
+
   function describeParticipant(participant: ParticipantSummary): string {
     if (participant.source === "self") return "You";
     if (participant.source === "session") return "Active in session";
     if (participant.source === "agents") return "Roster agent";
     return participant.status;
+  }
+
+  /** Reset an agent's identity - let AI choose new name/role */
+  async function handleResetIdentity(participant: ParticipantSummary, event: MouseEvent) {
+    event.stopPropagation(); // Don't trigger parent button
+    if (participant.kind === "human" || !participant.id) return;
+    
+    try {
+      resettingIdentity = participant.id;
+      const { identity } = await agentResetIdentity(participant.id);
+      console.log(`🎭 ${participant.name} is now: ${identity.name} (@${identity.handle}) - ${identity.role}`);
+      // Reload the roster to show new identity
+      await loadAgentRoster();
+    } catch (err) {
+      console.error("Failed to reset identity:", err);
+      error = `Failed to reset identity: ${err}`;
+    } finally {
+      resettingIdentity = null;
+    }
   }
 
   /** Get the agent role from metadata (e.g., "default_skeptic" -> "Skeptic") */
@@ -747,7 +769,23 @@
           >
             <div class="member-avatar">{participant.kind === "human" ? "👤" : "🤖"}</div>
             <div class="member-info">
-              <div class="member-name">{participant.name}</div>
+              <div class="member-name-row">
+                <span class="member-name">{participant.name}</span>
+                {#if participant.kind === "agent" && participant.source === "agents"}
+                  <button
+                    class="reset-identity-btn"
+                    title="Reset identity - let AI choose new name/role"
+                    on:click={(e) => handleResetIdentity(participant, e)}
+                    disabled={resettingIdentity === participant.id}
+                  >
+                    {#if resettingIdentity === participant.id}
+                      ⏳
+                    {:else}
+                      🎭
+                    {/if}
+                  </button>
+                {/if}
+              </div>
               <div class="member-status">
                 {#if getAgentRole(participant)}
                   <span class="member-role">{getAgentRole(participant)}</span>
@@ -1320,6 +1358,13 @@
     min-width: 0;
   }
 
+  .member-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+  }
+
   .member-name {
     font-size: 0.9rem;
     color: #eee;
@@ -1327,6 +1372,29 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .reset-identity-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0.4;
+    transition: opacity 0.2s, transform 0.2s;
+    line-height: 1;
+  }
+
+  .reset-identity-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+
+  .reset-identity-btn:disabled {
+    cursor: wait;
+    opacity: 0.6;
   }
   
   .member-handle {
