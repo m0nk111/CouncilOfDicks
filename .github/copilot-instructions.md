@@ -4,17 +4,26 @@
 
 This is a **decentralized P2P network** for AI consensus deliberation. Multiple AI models debate questions until they reach consensus, creating a democratic approach to AI decision-making that serves humanity.
 
-### Current Status: v0.3.0-alpha (2025-11-30)
+### Current Status: v0.3.1-alpha (2025-12-21)
 
 **Foundation Complete:** ✅
 - Tauri 2.0 + Svelte 5 cross-platform app
-- Ollama AI integration (local + network)
+- Multi-provider AI integration (Ollama, OpenAI, Google, OpenRouter)
 - P2P networking (libp2p 0.54: gossipsub, mDNS, Kademlia DHT)
 - Council deliberation system (multi-round, blind voting, 67% consensus)
 - Ed25519 cryptographic signatures (response authentication, 128-bit security)
 - MCP server (JSON-RPC 2.0 on port 9001 for external AI agents)
-- Comprehensive logging & metrics (emoji-prefixed debug, performance tracking)
-- 36 backend tests passing (10 core + 2 P2P + 3 protocol + 5 manager + 6 council + 3 MCP + 7 crypto)
+- Per-agent timeout configuration (for slow models like deepseek-r1:32b)
+- Agent statistics tracking (requests, tokens, response times)
+- Identity persistence (agent names/handles saved to config)
+- Comprehensive logging to `logs/` directory
+
+**Directory Structure:**
+- `logs/` - Server and application logs
+- `data/` - Runtime data (identity keys, databases)
+- `config/` - Configuration files (agents.json, app_config.json)
+- `docs/` - All documentation
+- `test/` - Test files and utilities
 
 **Next Phase:**
 - Council UI panel (Svelte frontend for session management)

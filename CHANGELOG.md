@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-12-21)
+- **Per-Agent Timeout**: Agents can now have custom `timeout_secs` in config for slow models
+- **Agent Statistics**: Full stats tracking (requests, tokens, response times) visible on agent cards
+- **Identity Persistence**: Agent identity changes (name, handle, role) now saved to `agents.json`
+
+### Changed (2025-12-21)
+- **Username-Only Auth**: Ollama Guardian support - only `ollama_username` required (password optional)
+- **Project Structure**: Organized per root directory rules
+  - Logs → `logs/` directory
+  - Runtime data (identity key) → `data/` directory  
+  - Docs (TODO, CONTRIBUTING, DEVELOPMENT) → `docs/`
+  - Test files → `test/`
+- **No LLM Fallbacks**: Each agent strictly uses its own provider/model - no fallback to other LLMs
+- **Global Timeout**: Increased default Ollama timeout to 300s (5 min) for large models
+
+### Fixed (2025-12-21)
+- **Empty Response Handling**: Better error messages for models returning empty/invalid JSON
+- **Identity Generation**: Uses agent's own model instead of falling back to OpenAI
+
 ### Added (2025-12-05) - Multi-Provider Support 🚀
 - **OpenAI Provider**: Full Chat Completions API support for GPT-4o, GPT-4, etc.
   - Embeddings via `text-embedding-3-small`
