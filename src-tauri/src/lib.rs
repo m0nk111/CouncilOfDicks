@@ -906,6 +906,7 @@ async fn agent_add_full(
         enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
         temperature: temperature.unwrap_or(0.7),
         active: true,
+        timeout_secs: None, // Use global timeout
         metadata,
     };
     
@@ -1126,6 +1127,7 @@ async fn provider_generate_identity(
         &provider_name,
         &existing_agents,
         user_hint.as_deref(),
+        None, // Use default timeout
     ).await?;
     
     state.log_success("provider_generate_identity", &format!(

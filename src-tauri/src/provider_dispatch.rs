@@ -23,6 +23,19 @@ pub async fn generate(
     config: &AppConfig,
     logger: Option<Arc<Logger>>,
 ) -> Result<String, String> {
+    generate_with_timeout(provider, model, prompt, system_prompt, config, logger, None).await
+}
+
+/// Generate text with custom timeout (for slow models)
+pub async fn generate_with_timeout(
+    provider: &str,
+    model: &str,
+    prompt: String,
+    system_prompt: Option<String>,
+    config: &AppConfig,
+    logger: Option<Arc<Logger>>,
+    timeout_secs: Option<u64>,
+) -> Result<String, String> {
     match provider.to_lowercase().as_str() {
         "ollama" => {
             let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
@@ -31,12 +44,13 @@ pub async fn generate(
                 None
             };
 
-            ollama::ask_ollama_with_auth(
+            ollama::ask_ollama_with_timeout(
                 &config.ollama_url,
                 model,
                 prompt,
                 system_prompt,
                 auth,
+                timeout_secs,
             )
             .await
         }

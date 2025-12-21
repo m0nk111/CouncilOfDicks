@@ -246,12 +246,13 @@ async fn reset_agent_identity(
         .map(|a| a.name.clone())
         .collect();
     
-    // Generate new identity
+    // Generate new identity (use agent's custom timeout if set)
     let identity = match crate::providers::config::generate_agent_identity(
         &existing_agent.model,
         &existing_agent.provider,
         &existing_names,
         payload.user_hint.as_deref(),
+        existing_agent.timeout_secs,
     ).await {
         Ok(id) => id,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<String>::err(format!("Failed to generate identity: {}", e)))).into_response(),

@@ -111,6 +111,11 @@ pub struct Agent {
     /// Is this agent currently active?
     pub active: bool,
 
+    /// Custom timeout in seconds (overrides global timeout if set)
+    /// Use for slow models like deepseek-r1:32b that need more time
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+
     /// Metadata for UI/sorting
     pub metadata: HashMap<String, String>,
 }
@@ -133,6 +138,7 @@ impl Agent {
             enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
             temperature: 0.7,
             active: true,
+            timeout_secs: None, // Use global timeout
             metadata: HashMap::new(),
         }
     }
@@ -150,6 +156,7 @@ impl Agent {
             enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
             temperature: 0.7,
             active: true,
+            timeout_secs: None, // Use global timeout
             metadata: HashMap::new(),
         }
     }
@@ -190,6 +197,8 @@ struct AgentConfig {
     pub model: String,
     pub system_prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_secs: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, String>>,
 }
 
@@ -228,6 +237,7 @@ impl AgentPool {
                 provider: Some(agent.provider.clone()),
                 model: agent.model.clone(),
                 system_prompt: agent.system_prompt.clone(),
+                timeout_secs: agent.timeout_secs,
                 metadata: if agent.metadata.is_empty() { None } else { Some(agent.metadata.clone()) },
             }
         }).collect();

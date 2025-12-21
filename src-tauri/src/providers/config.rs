@@ -181,6 +181,7 @@ pub async fn generate_agent_identity(
     provider_name: &str,
     existing_agents: &[String], // Names of existing agents to avoid duplicates
     user_hint: Option<&str>,    // Optional user guidance
+    timeout_secs: Option<u64>,  // Custom timeout for slow models
 ) -> Result<AgentIdentity, String> {
     use crate::provider_dispatch;
     use crate::config::AppConfig;
@@ -242,15 +243,17 @@ Rules:
         ));
     }
     
-    eprintln!("🔍 [identity] Generating identity using {} provider with model {}", provider_name, model_name);
+    eprintln!("🔍 [identity] Generating identity using {} provider with model {} (timeout: {}s)", 
+        provider_name, model_name, timeout_secs.unwrap_or(crate::ollama::OLLAMA_DEFAULT_TIMEOUT_SECS));
     
-    let response = provider_dispatch::generate(
+    let response = provider_dispatch::generate_with_timeout(
         provider_name,
         model_name,
         prompt,
         Some("You are a helpful assistant that responds only in valid JSON.".to_string()),
         &config,
         None,
+        timeout_secs,
     ).await.map_err(|e| {
         eprintln!("❌ [identity] Failed to generate identity with {}/{}: {}", provider_name, model_name, e);
         format!(

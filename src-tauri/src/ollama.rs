@@ -68,7 +68,7 @@ pub async fn ask_ollama_internal(
 }
 
 pub async fn ask_ollama(url: &str, model: &str, prompt: String) -> Result<String, String> {
-    ask_ollama_with_auth(url, model, prompt, None, None).await
+    ask_ollama_with_timeout(url, model, prompt, None, None, None).await
 }
 
 pub async fn ask_ollama_with_auth(
@@ -78,11 +78,25 @@ pub async fn ask_ollama_with_auth(
     system: Option<String>,
     basic_auth: Option<(&str, &str)>,
 ) -> Result<String, String> {
+    ask_ollama_with_timeout(url, model, prompt, system, basic_auth, None).await
+}
+
+/// Ask Ollama with custom timeout (for slow models like deepseek-r1)
+pub async fn ask_ollama_with_timeout(
+    url: &str,
+    model: &str,
+    prompt: String,
+    system: Option<String>,
+    basic_auth: Option<(&str, &str)>,
+    timeout_secs: Option<u64>,
+) -> Result<String, String> {
+    let timeout = timeout_secs.unwrap_or(OLLAMA_DEFAULT_TIMEOUT_SECS);
+    
     println!("🔍 [DEBUG] Asking Ollama: {}", prompt);
-    println!("📡 [DEBUG] URL: {}, Model: {}", url, model);
+    println!("📡 [DEBUG] URL: {}, Model: {}, Timeout: {}s", url, model, timeout);
 
     let base_url = url.trim_end_matches('/');
-    let client = build_http_client()?;
+    let client = build_http_client_with_timeout(timeout)?;
     let resolved_model = resolve_model(&client, base_url, model, basic_auth).await?;
 
     if resolved_model != model {
@@ -107,7 +121,7 @@ pub async fn ask_ollama_with_auth(
         request = request.basic_auth(username, Some(password));
     }
 
-    println!("⏳ [OLLAMA] Sending request to {} (timeout: {}s)...", resolved_model, OLLAMA_TIMEOUT_SECS);
+    println!("⏳ [OLLAMA] Sending request to {} (timeout: {}s)...", resolved_model, timeout);
     
     let response = request
         .send()
@@ -116,8 +130,8 @@ pub async fn ask_ollama_with_auth(
             if e.is_timeout() {
                 format!(
                     "⏱️ Ollama request timed out after {}s. Model '{}' may need more time. \
-                    Consider using a smaller model or increasing timeout.",
-                    OLLAMA_TIMEOUT_SECS, resolved_model
+                    Set timeout_secs in agent config for slower models.",
+                    timeout, resolved_model
                 )
             } else if e.is_connect() {
                 format!("❌ Failed to connect to Ollama at {}: Is Ollama running?", url)
@@ -144,13 +158,17 @@ pub async fn ask_ollama_with_auth(
 
 /// Default timeout for Ollama requests (5 minutes)
 /// Large models like deepseek-r1:32b can take a long time to generate
-const OLLAMA_TIMEOUT_SECS: u64 = 300;
+pub const OLLAMA_DEFAULT_TIMEOUT_SECS: u64 = 300;
 
-fn build_http_client() -> Result<Client, String> {
+fn build_http_client_with_timeout(timeout_secs: u64) -> Result<Client, String> {
     Client::builder()
-        .timeout(Duration::from_secs(OLLAMA_TIMEOUT_SECS))
+        .timeout(Duration::from_secs(timeout_secs))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))
+}
+
+fn build_http_client() -> Result<Client, String> {
+    build_http_client_with_timeout(OLLAMA_DEFAULT_TIMEOUT_SECS)
 }
 
 async fn resolve_model(

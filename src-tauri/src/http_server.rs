@@ -383,12 +383,13 @@ async fn agent_reset_identity(
         .map(|a| a.name.clone())
         .collect();
     
-    // Generate new identity
+    // Generate new identity (use agent's custom timeout if set)
     let identity = crate::providers::config::generate_agent_identity(
         &existing_agent.model,
         &existing_agent.provider,
         &existing_names,
         payload.user_hint.as_deref(),
+        existing_agent.timeout_secs,
     ).await.map_err(ApiError::InternalError)?;
     
     // Generate new system prompt

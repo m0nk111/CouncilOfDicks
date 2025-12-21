@@ -187,6 +187,7 @@ impl AppState {
                     provider: Option<String>,
                     model: String,
                     system_prompt: String,
+                    timeout_secs: Option<u64>,
                     metadata: Option<std::collections::HashMap<String, String>>,
                 }
 
@@ -203,13 +204,17 @@ impl AppState {
                             if let Some(handle) = config.handle {
                                 agent.handle = handle;
                             }
+                            if let Some(timeout) = config.timeout_secs {
+                                agent.timeout_secs = Some(timeout);
+                            }
                             if let Some(metadata) = config.metadata {
                                 agent.metadata = metadata;
                             }
                             if let Err(e) = agent_pool.add_agent(agent).await {
                                 logger.error("agent", &format!("Failed to add agent {}: {}", config.name, e));
                             } else {
-                                logger.success("agent", &format!("Loaded agent: {} ({})", config.name, config.model));
+                                let timeout_info = config.timeout_secs.map(|t| format!(" (timeout: {}s)", t)).unwrap_or_default();
+                                logger.success("agent", &format!("Loaded agent: {} ({}){}", config.name, config.model, timeout_info));
                             }
                         }
                     }
