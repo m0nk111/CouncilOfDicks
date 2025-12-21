@@ -112,8 +112,8 @@ impl AppState {
 
         let chat_bot_status = Arc::new(Mutex::new(ChatBotStatus::default()));
 
-        // Load or generate signing identity
-        let keypair_path = PathBuf::from("./council_identity.key");
+        // Load or generate signing identity (stored in data/ directory)
+        let keypair_path = data_dir.join("council_identity.key");
         let signing_identity = if keypair_path.exists() {
             logger.info("crypto", "Loading existing signing identity");
             match SigningIdentity::load(keypair_path.clone()) {

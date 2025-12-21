@@ -23,13 +23,15 @@ dist/
 .DS_Store
 src-tauri/WixTools/
 
-# Logs
+# Logs - stored in logs/ directory
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Runtime data
+# Runtime data - stored in data/ directory
+data/
 council_identity.key
 council_knowledge.db*
 *.sqlite*
@@ -62,3 +64,6 @@ Thumbs.db
 
 # IPFS local data
 .ipfs/
+
+# Log files
+logs/*.log

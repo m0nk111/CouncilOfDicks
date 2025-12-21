@@ -36,10 +36,32 @@
 
 ### Provider-Specific Notes
 
-- **Ollama**: Default, no config needed. Supports basic auth via `ollama_username`/`ollama_password`.
+- **Ollama**: Default, no config needed. Supports basic auth via `ollama_username` (password optional, for Ollama Guardian).
 - **OpenAI**: Standard Chat Completions API. Supports embeddings via `text-embedding-3-small`.
 - **Google**: Gemini API. Supports 1M token context (Gemini 1.5 Pro).
 - **OpenRouter**: Access Claude, Llama, Mistral, and 100+ models. No embeddings support.
+
+### Ollama Guardian (Reverse Proxy)
+
+If you use **Ollama Guardian** as a reverse proxy for Ollama:
+
+1. **Authentication**: Set `ollama_username` in `config/app_config.json` to your app name. Password is optional (empty string sent).
+
+2. **Timeout Limitation**: Guardian has its own timeout setting (default ~120s). For large models like `deepseek-r1:32b`, you may get `504 Gateway Timeout` before the model completes.
+   
+   **Solutions:**
+   - Configure Guardian's timeout to match or exceed the agent's `timeout_secs`
+   - Use smaller/faster models for identity generation
+   - Run slow models directly against Ollama (bypass Guardian)
+
+3. **Example config:**
+   ```json
+   {
+     "ollama_url": "http://192.168.1.5:11434",
+     "ollama_username": "council-of-dicks",
+     "ollama_password": null
+   }
+   ```
 
 ---
 
