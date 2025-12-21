@@ -1,0 +1,84 @@
+[vite] connecting... client:495:9
+[vite] connected. client:618:15
+🔧 Running in WEB mode (HTTP API: http://192.168.1.5:8080) api-adapter.ts:55:11
+🔧 Council Of Dicks - Initializing... main.ts:4:9
+🌍 Environment: 
+Object { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0", hasTauri: false, location: "http://192.168.1.5:5175/" }
+main.ts:5:9
+📍 App element found: 
+<div id="app">
+main.ts:11:9
+🚀 Mounting Svelte 5 App... main.ts:17:13
+✅ App mounted successfully: 
+Object { "$destroy": $destroy(), "$on": $on(), "$set": $set() }
+main.ts:21:13
+ChatInterface mounted ChatInterface.svelte:552:11
+PoHVIndicator mounted PoHVIndicator.svelte:43:11
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/config niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/config niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to load config: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:562:12
+Failed to load messages: Error: HTTP 500 Internal Server Error ChatInterface.svelte:254:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load active session: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:521:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Failed to load messages: Error: HTTP 500 Internal Server Error ChatInterface.svelte:254:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load active session: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:521:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Failed to load messages: Error: HTTP 500 Internal Server Error ChatInterface.svelte:254:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load active session: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:521:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to load active session: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:521:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/council/sessions niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Failed to load active session: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:521:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null).
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/pohv/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to get PoHV status: TypeError: NetworkError when attempting to fetch resource. PoHVIndicator.svelte:26:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/agents niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load agent roster: TypeError: NetworkError when attempting to fetch resource. ChatInterface.svelte:466:12
+Cross-Origin-aanvraag geblokkeerd: de Same Origin Policy staat het lezen van de externe bron op http://192.168.1.5:8080/api/chat/status niet toe. (Reden: CORS-aanvraag is niet gelukt). Statuscode: (null). 2
+Failed to load messages: TypeError: NetworkError when attempting to fetch resource. 17 ChatInterface.svelte:254:12
+De verbinding met ws://192.168.1.5:5175/?token=mXYQmsGcRaPy werd onderbroken tijdens het laden van de pagina. client:536:19
+[vite] server connection lost. Polling for restart... client:560:15
+chatCheckRateLimit: skipping rate limit check in web mode api.ts:186:11
+chatCheckSpam: skipping spam check in web mode api.ts:199:11

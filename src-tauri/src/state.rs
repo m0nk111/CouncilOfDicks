@@ -175,11 +175,16 @@ impl AppState {
 
         if agents_config_path.exists() {
             logger.info("agent", &format!("Loading agents from {:?}", agents_config_path));
+            
+            // Set config path for persistence
+            agent_pool.set_config_path(agents_config_path.clone()).await;
+            
             if let Ok(content) = fs::read_to_string(&agents_config_path) {
                 #[derive(serde::Deserialize)]
                 struct AgentConfig {
                     name: String,
                     handle: Option<String>,
+                    provider: Option<String>,
                     model: String,
                     system_prompt: String,
                     metadata: Option<std::collections::HashMap<String, String>>,
@@ -188,8 +193,10 @@ impl AppState {
                 match serde_json::from_str::<Vec<AgentConfig>>(&content) {
                     Ok(configs) => {
                         for config in configs {
-                            let mut agent = Agent::new(
+                            let provider = config.provider.unwrap_or_else(|| "ollama".to_string());
+                            let mut agent = Agent::with_provider(
                                 config.name.clone(),
+                                provider,
                                 config.model.clone(),
                                 config.system_prompt,
                             );
@@ -198,7 +205,8 @@ impl AppState {
                             }
                             if let Some(metadata) = config.metadata {
                                 agent.metadata = metadata;
-                            }                            if let Err(e) = agent_pool.add_agent(agent).await {
+                            }
+                            if let Err(e) = agent_pool.add_agent(agent).await {
                                 logger.error("agent", &format!("Failed to add agent {}: {}", config.name, e));
                             } else {
                                 logger.success("agent", &format!("Loaded agent: {} ({})", config.name, config.model));

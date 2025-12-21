@@ -175,6 +175,22 @@ impl Agent {
 pub struct AgentPool {
     agents: Arc<Mutex<HashMap<String, Agent>>>,
     stats: Arc<Mutex<HashMap<String, AgentStats>>>,
+    /// Path to config file for persistence
+    config_path: Arc<Mutex<Option<std::path::PathBuf>>>,
+}
+
+/// Agent config format for JSON serialization (matches agents.json structure)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AgentConfig {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    pub model: String,
+    pub system_prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, String>>,
 }
 
 impl AgentPool {
@@ -183,7 +199,47 @@ impl AgentPool {
         Self {
             agents: Arc::new(Mutex::new(HashMap::new())),
             stats: Arc::new(Mutex::new(HashMap::new())),
+            config_path: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Set the config file path for persistence
+    pub async fn set_config_path(&self, path: std::path::PathBuf) {
+        let mut config_path = self.config_path.lock().await;
+        *config_path = Some(path);
+    }
+
+    /// Save agents to config file
+    pub async fn save_to_file(&self) -> Result<(), String> {
+        let config_path = self.config_path.lock().await;
+        let path = match config_path.as_ref() {
+            Some(p) => p.clone(),
+            None => return Err("No config path set".to_string()),
+        };
+        drop(config_path); // Release lock before acquiring agents lock
+        
+        let agents = self.agents.lock().await;
+        
+        // Convert to AgentConfig format
+        let configs: Vec<AgentConfig> = agents.values().map(|agent| {
+            AgentConfig {
+                name: agent.name.clone(),
+                handle: Some(agent.handle.clone()),
+                provider: Some(agent.provider.clone()),
+                model: agent.model.clone(),
+                system_prompt: agent.system_prompt.clone(),
+                metadata: if agent.metadata.is_empty() { None } else { Some(agent.metadata.clone()) },
+            }
+        }).collect();
+        
+        // Write to file
+        let json = serde_json::to_string_pretty(&configs)
+            .map_err(|e| format!("Failed to serialize agents: {}", e))?;
+        
+        std::fs::write(&path, json)
+            .map_err(|e| format!("Failed to write agents config to {:?}: {}", path, e))?;
+        
+        Ok(())
     }
 
     /// Add agent to pool
@@ -225,13 +281,22 @@ impl AgentPool {
             .ok_or_else(|| format!("Agent not found: {}", agent_id))
     }
 
-    /// Update existing agent
+    /// Update existing agent (and persist to config file)
     pub async fn update_agent(&self, agent: Agent) -> Result<(), String> {
-        let mut agents = self.agents.lock().await;
-        if !agents.contains_key(&agent.id) {
-            return Err(format!("Agent not found: {}", agent.id));
+        {
+            let mut agents = self.agents.lock().await;
+            if !agents.contains_key(&agent.id) {
+                return Err(format!("Agent not found: {}", agent.id));
+            }
+            agents.insert(agent.id.clone(), agent);
         }
-        agents.insert(agent.id.clone(), agent);
+        
+        // Persist to file
+        if let Err(e) = self.save_to_file().await {
+            // Log but don't fail - in-memory update succeeded
+            eprintln!("⚠️ Failed to persist agent update: {}", e);
+        }
+        
         Ok(())
     }
 
