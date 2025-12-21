@@ -74,6 +74,7 @@
     "handle": "deep_reasoner",
     "provider": "ollama",
     "model": "deepseek-r1:32b",
+    "timeout_secs": 600,
     "system_prompt": "You are Deep Reasoner. Your strength is complex, multi-step logical reasoning. You break down problems into first principles and identify edge cases that others miss. You value rigorous logic over intuition.",
     "metadata": {
       "role": "default_reasoner"
