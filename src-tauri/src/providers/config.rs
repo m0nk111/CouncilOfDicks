@@ -228,32 +228,38 @@ Rules:
         model_name, provider_name, existing_list, user_context, roles_list
     );
     
-    // Determine which provider to use - use the SAME provider/model as the agent
-    // This ensures Ollama agents use Ollama for identity generation (GPU activity)
-    let (use_provider, use_model) = if provider_name.to_lowercase() == "ollama" {
-        // For Ollama agents, use the same Ollama model
-        ("ollama".to_string(), model_name.to_string())
-    } else if provider_dispatch::is_provider_configured(provider_name, &config) {
-        // For other providers, use their own model
-        (provider_name.to_string(), model_name.to_string())
-    } else if provider_dispatch::is_provider_configured("openai", &config) {
-        // Fallback to OpenAI if the provider isn't configured
-        ("openai".to_string(), "gpt-4o-mini".to_string())
-    } else if provider_dispatch::is_provider_configured("google", &config) {
-        ("google".to_string(), "gemini-1.5-flash".to_string())
-    } else {
-        // Final fallback to default Ollama model
-        ("ollama".to_string(), config.ollama_model.clone())
-    };
+    // NO FALLBACKS: Each agent must use its own provider/model
+    // If the provider isn't available, fail with clear error - don't substitute another LLM
+    // This preserves the individuality of each AI agent
+    let provider_lower = provider_name.to_lowercase();
+    
+    if provider_lower != "ollama" && !provider_dispatch::is_provider_configured(provider_name, &config) {
+        return Err(format!(
+            "❌ Provider '{}' is not configured for agent with model '{}'. \
+            Cannot generate identity - no fallback to other LLMs allowed. \
+            Please configure the {} API key or use a different provider.",
+            provider_name, model_name, provider_name
+        ));
+    }
+    
+    eprintln!("🔍 [identity] Generating identity using {} provider with model {}", provider_name, model_name);
     
     let response = provider_dispatch::generate(
-        &use_provider,
-        &use_model,
+        provider_name,
+        model_name,
         prompt,
         Some("You are a helpful assistant that responds only in valid JSON.".to_string()),
         &config,
         None,
-    ).await?;
+    ).await.map_err(|e| {
+        eprintln!("❌ [identity] Failed to generate identity with {}/{}: {}", provider_name, model_name, e);
+        format!(
+            "Failed to generate identity using {}/{}: {}. No fallback - each agent must use its own LLM.",
+            provider_name, model_name, e
+        )
+    })?;
+    
+    eprintln!("✅ [identity] Got response from {}/{}", provider_name, model_name);
     
     // Parse the JSON response
     let response = response.trim();
