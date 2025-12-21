@@ -2,6 +2,7 @@ use crate::config::AppConfig;
 use crate::logger::Logger;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -42,11 +43,10 @@ impl OllamaClient {
     }
 
     pub async fn ask(&self, model: &str, prompt: &str, system: Option<&str>) -> Result<String, String> {
-        let auth = if let (Some(u), Some(p)) = (&self.config.ollama_username, &self.config.ollama_password) {
-            Some((u.as_str(), p.as_str()))
-        } else {
-            None
-        };
+        // Ollama Guardian uses username-only auth (app name), password is optional
+        let auth = self.config.ollama_username.as_ref().map(|u| {
+            (u.as_str(), self.config.ollama_password.as_deref().unwrap_or(""))
+        });
         ask_ollama_with_auth(&self.config.ollama_url, model, prompt.to_string(), system.map(|s| s.to_string()), auth).await
     }
 }
@@ -59,11 +59,10 @@ pub async fn ask_ollama_internal(
     system: Option<String>,
 ) -> Result<String, String> {
     let config = state.get_config();
-    let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
-        Some((u.as_str(), p.as_str()))
-    } else {
-        None
-    };
+    // Ollama Guardian uses username-only auth (app name), password is optional
+    let auth = config.ollama_username.as_ref().map(|u| {
+        (u.as_str(), config.ollama_password.as_deref().unwrap_or(""))
+    });
     ask_ollama_with_auth(&config.ollama_url, &model, prompt, system, auth).await
 }
 
@@ -147,10 +146,35 @@ pub async fn ask_ollama_with_timeout(
         ));
     }
 
-    let ollama_response: OllamaResponse = response
-        .json()
+    // First get the raw text to check for errors
+    let response_text = response
+        .text()
         .await
-        .map_err(|e| format!("❌ Failed to parse Ollama response: {}", e))?;
+        .map_err(|e| format!("❌ Failed to read Ollama response body: {}", e))?;
+    
+    // Check for common error responses
+    if response_text.contains("Not authenticated") {
+        return Err(format!(
+            "❌ Ollama requires authentication. Check ollama_username/ollama_password in config. Model: {}",
+            model
+        ));
+    }
+    
+    // Try to parse the JSON
+    let ollama_response: OllamaResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!(
+            "❌ Failed to parse Ollama response: {}. Raw: {}",
+            e, 
+            &response_text[..response_text.len().min(200)]
+        ))?;
+    
+    // Check for empty response
+    if ollama_response.response.trim().is_empty() {
+        return Err(format!(
+            "❌ Model '{}' returned empty response. This model may have crashed or doesn't support this prompt type.",
+            model
+        ));
+    }
 
     println!("✅ [DEBUG] Got response from Ollama!");
     Ok(ollama_response.response)

@@ -38,11 +38,10 @@ pub async fn generate_with_timeout(
 ) -> Result<String, String> {
     match provider.to_lowercase().as_str() {
         "ollama" => {
-            let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
-                Some((u.as_str(), p.as_str()))
-            } else {
-                None
-            };
+            // Ollama Guardian uses username-only auth (app name), password is optional
+            let auth = config.ollama_username.as_ref().map(|u| {
+                (u.as_str(), config.ollama_password.as_deref().unwrap_or(""))
+            });
 
             ollama::ask_ollama_with_timeout(
                 &config.ollama_url,

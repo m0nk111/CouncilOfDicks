@@ -310,11 +310,10 @@ async fn create_council_session(
             .config
             .lock()
             .expect("Failed to lock config");
-        let auth = if let (Some(u), Some(p)) = (&config.ollama_username, &config.ollama_password) {
-            Some((u.clone(), p.clone()))
-        } else {
-            None
-        };
+        // Ollama Guardian uses username-only auth (app name), password is optional
+        let auth = config.ollama_username.as_ref().map(|u| {
+            (u.clone(), config.ollama_password.clone().unwrap_or_default())
+        });
         (config.ollama_url.clone(), auth)
     };
 

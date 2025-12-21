@@ -80,11 +80,10 @@ impl AppState {
         let kb_path = data_dir.join("knowledge_bank.sqlite");
         let kb_url = format!("sqlite://{}", kb_path.to_string_lossy());
         
-        // Build auth tuple if both username and password are set
-        let ollama_auth = match (&base_config.ollama_username, &base_config.ollama_password) {
-            (Some(u), Some(p)) => Some((u.clone(), p.clone())),
-            _ => None,
-        };
+        // Build auth tuple - Ollama Guardian uses username-only (app name), password optional
+        let ollama_auth = base_config.ollama_username.as_ref().map(|u| {
+            (u.clone(), base_config.ollama_password.clone().unwrap_or_default())
+        });
         
         let knowledge_bank =
             match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone(), ollama_auth).await

@@ -71,8 +71,9 @@ impl OllamaProvider {
     }
 
     pub fn with_auth(mut self, username: Option<String>, password: Option<String>) -> Self {
-        if let (Some(u), Some(p)) = (username, password) {
-            self.auth = Some((u, p));
+        // Ollama Guardian uses username-only auth (app name), password is optional
+        if let Some(u) = username {
+            self.auth = Some((u, password.unwrap_or_default()));
         }
         self
     }
