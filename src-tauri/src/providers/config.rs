@@ -262,10 +262,18 @@ Rules:
         )
     })?;
     
-    eprintln!("✅ [identity] Got response from {}/{}", provider_name, model_name);
+    eprintln!("✅ [identity] Got response from {}/{}: {} chars", provider_name, model_name, response.len());
     
-    // Parse the JSON response
+    // Check for empty response
     let response = response.trim();
+    if response.is_empty() {
+        return Err(format!(
+            "Model {}/{} returned empty response. The model may not support JSON generation or needs a different prompt.",
+            provider_name, model_name
+        ));
+    }
+    
+    eprintln!("🔍 [identity] Raw response: {}", &response[..response.len().min(500)]);
     
     // Try to extract JSON from the response (handle markdown code blocks)
     let json_str = if response.starts_with("```") {
@@ -275,12 +283,24 @@ Rules:
             .take_while(|l| !l.starts_with("```"))
             .collect::<Vec<_>>()
             .join("\n")
+    } else if let Some(start) = response.find('{') {
+        // Try to find JSON object in response
+        if let Some(end) = response.rfind('}') {
+            response[start..=end].to_string()
+        } else {
+            response.to_string()
+        }
     } else {
         response.to_string()
     };
     
+    eprintln!("🔍 [identity] Extracted JSON: {}", &json_str[..json_str.len().min(500)]);
+    
     let identity: AgentIdentity = serde_json::from_str(&json_str)
-        .map_err(|e| format!("Failed to parse AI response as JSON: {}. Response was: {}", e, response))?;
+        .map_err(|e| format!(
+            "Failed to parse AI response as JSON: {}. Model {}/{} may not support structured output. Raw response: {}",
+            e, provider_name, model_name, &response[..response.len().min(200)]
+        ))?;
     
     // Validate the response
     if identity.name.len() < 3 || identity.name.len() > 25 {
