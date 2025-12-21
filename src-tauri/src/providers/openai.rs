@@ -48,6 +48,10 @@ struct ChatMessageResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 struct Usage {
+    #[serde(default)]
+    prompt_tokens: usize,
+    #[serde(default)]
+    completion_tokens: usize,
     total_tokens: usize,
 }
 
@@ -269,7 +273,9 @@ impl AIProvider for OpenAIProvider {
             .and_then(|c| c.message.content.clone())
             .unwrap_or_default();
 
-        let tokens_used = chat_response.usage.map(|u| u.total_tokens).unwrap_or(0);
+        let tokens_used = chat_response.usage.as_ref().map(|u| u.total_tokens).unwrap_or(0);
+        let input_tokens = chat_response.usage.as_ref().map(|u| u.prompt_tokens);
+        let output_tokens = chat_response.usage.as_ref().map(|u| u.completion_tokens);
 
         let finish_reason = chat_response
             .choices
@@ -299,6 +305,8 @@ impl AIProvider for OpenAIProvider {
             text,
             model: request.model,
             tokens_used,
+            input_tokens,
+            output_tokens,
             finish_reason,
         })
     }

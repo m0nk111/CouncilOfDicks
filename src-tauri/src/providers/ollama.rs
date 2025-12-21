@@ -21,6 +21,10 @@ struct OllamaRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OllamaResponse {
     response: String,
+    #[serde(default)]
+    prompt_eval_count: Option<usize>,
+    #[serde(default)]
+    eval_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +149,10 @@ impl AIProvider for OllamaProvider {
             .await
             .map_err(|e| ProviderError::InternalError(e.to_string()))?;
 
+        let input_tokens = ollama_response.prompt_eval_count;
+        let output_tokens = ollama_response.eval_count;
+        let tokens_used = input_tokens.unwrap_or(0) + output_tokens.unwrap_or(0);
+
         let preview_len = std::cmp::min(ollama_response.response.len(), 100);
         let preview = &ollama_response.response[..preview_len];
         let suffix = if ollama_response.response.len() > 100 { "..." } else { "" };
@@ -152,13 +160,15 @@ impl AIProvider for OllamaProvider {
         self.logger.log(
             LogLevel::Success,
             "ollama_provider",
-            &format!("✅ Generated {} chars: '{}{}'", ollama_response.response.len(), preview.replace('\n', " "), suffix),
+            &format!("✅ Generated {} chars ({} tokens): '{}{}'", ollama_response.response.len(), tokens_used, preview.replace('\n', " "), suffix),
         );
 
         Ok(GenerationResponse {
             text: ollama_response.response,
             model: request.model,
-            tokens_used: 0, // Ollama doesn't return token count in simple API
+            tokens_used,
+            input_tokens,
+            output_tokens,
             finish_reason: FinishReason::Stop,
         })
     }

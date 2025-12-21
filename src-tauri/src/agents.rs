@@ -4,8 +4,80 @@ use crate::prompt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Mutex;
 use uuid::Uuid;
+
+/// Statistics tracked per agent
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AgentStats {
+    /// Total number of requests made
+    pub total_requests: u64,
+    /// Successful requests
+    pub successful_requests: u64,
+    /// Failed requests
+    pub failed_requests: u64,
+    /// Total input tokens (prompt)
+    pub total_input_tokens: u64,
+    /// Total output tokens (completion)
+    pub total_output_tokens: u64,
+    /// Average response time in milliseconds
+    pub avg_response_time_ms: f64,
+    /// Last response time in milliseconds
+    pub last_response_time_ms: f64,
+    /// Last context size (chars)
+    pub last_context_size: usize,
+    /// Timestamp of last activity (Unix epoch seconds)
+    pub last_activity: u64,
+}
+
+impl AgentStats {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record a successful request
+    pub fn record_success(&mut self, input_tokens: u64, output_tokens: u64, response_time_ms: f64, context_size: usize) {
+        self.total_requests += 1;
+        self.successful_requests += 1;
+        self.total_input_tokens += input_tokens;
+        self.total_output_tokens += output_tokens;
+        self.last_response_time_ms = response_time_ms;
+        self.last_context_size = context_size;
+        self.last_activity = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        // Update rolling average
+        let total = self.successful_requests as f64;
+        self.avg_response_time_ms = ((self.avg_response_time_ms * (total - 1.0)) + response_time_ms) / total;
+    }
+
+    /// Record a failed request
+    pub fn record_failure(&mut self, response_time_ms: f64) {
+        self.total_requests += 1;
+        self.failed_requests += 1;
+        self.last_response_time_ms = response_time_ms;
+        self.last_activity = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+    }
+
+    /// Get success rate as percentage
+    pub fn success_rate(&self) -> f64 {
+        if self.total_requests == 0 {
+            return 100.0;
+        }
+        (self.successful_requests as f64 / self.total_requests as f64) * 100.0
+    }
+
+    /// Get total tokens used
+    pub fn total_tokens(&self) -> u64 {
+        self.total_input_tokens + self.total_output_tokens
+    }
+}
 
 /// Represents a single AI agent that can participate in council sessions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +174,7 @@ impl Agent {
 #[derive(Clone)]
 pub struct AgentPool {
     agents: Arc<Mutex<HashMap<String, Agent>>>,
+    stats: Arc<Mutex<HashMap<String, AgentStats>>>,
 }
 
 impl AgentPool {
@@ -109,6 +182,7 @@ impl AgentPool {
     pub fn new() -> Self {
         Self {
             agents: Arc::new(Mutex::new(HashMap::new())),
+            stats: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -126,6 +200,10 @@ impl AgentPool {
         }
 
         agents.insert(agent_id.clone(), agent);
+        
+        // Initialize stats for new agent
+        let mut stats = self.stats.lock().await;
+        stats.entry(agent_id.clone()).or_insert_with(AgentStats::new);
         Ok(agent_id)
     }
 
@@ -182,6 +260,37 @@ impl AgentPool {
         }
 
         Ok(result)
+    }
+
+    /// Get stats for a specific agent
+    pub async fn get_agent_stats(&self, agent_id: &str) -> AgentStats {
+        let stats = self.stats.lock().await;
+        stats.get(agent_id).cloned().unwrap_or_default()
+    }
+
+    /// Get stats for all agents
+    pub async fn get_all_stats(&self) -> HashMap<String, AgentStats> {
+        let stats = self.stats.lock().await;
+        stats.clone()
+    }
+
+    /// Record a successful request for an agent
+    pub async fn record_success(&self, agent_id: &str, input_tokens: u64, output_tokens: u64, response_time_ms: f64, context_size: usize) {
+        let mut stats = self.stats.lock().await;
+        let agent_stats = stats.entry(agent_id.to_string()).or_insert_with(AgentStats::new);
+        agent_stats.record_success(input_tokens, output_tokens, response_time_ms, context_size);
+    }
+
+    /// Record a failed request for an agent
+    pub async fn record_failure(&self, agent_id: &str, response_time_ms: f64) {
+        let mut stats = self.stats.lock().await;
+        let agent_stats = stats.entry(agent_id.to_string()).or_insert_with(AgentStats::new);
+        agent_stats.record_failure(response_time_ms);
+    }
+
+    /// Start timing a request (returns instant for later measurement)
+    pub fn start_request(&self) -> Instant {
+        Instant::now()
     }
 }
 

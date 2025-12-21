@@ -524,6 +524,19 @@ export async function providerGenerateIdentity(
   });
 }
 
+// Agent statistics
+export interface AgentStats {
+  total_requests: number;
+  successful_requests: number;
+  failed_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  avg_response_time_ms: number;
+  last_response_time_ms: number;
+  last_context_size: number;
+  last_activity: number; // Unix timestamp
+}
+
 // Agent pool management types
 export interface Agent {
   id: string;
@@ -536,6 +549,7 @@ export interface Agent {
   temperature: number;
   active: boolean;
   metadata: Record<string, string>;
+  stats?: AgentStats; // Now included in agent list response
 }
 
 export interface Tool {

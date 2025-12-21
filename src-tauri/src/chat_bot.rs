@@ -372,6 +372,9 @@ Answer ONLY "YES" or "NO" (nothing else).
             &format!("→ {}:{}", agent.provider, agent.model),
         );
 
+        let start_time = std::time::Instant::now();
+        let context_size = prompt.len() + system_prompt.len();
+
         match provider_dispatch::generate(
             &agent.provider,
             &agent.model,
@@ -383,13 +386,28 @@ Answer ONLY "YES" or "NO" (nothing else).
         .await
         {
             Ok(response) => {
+                let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+                
+                // Estimate tokens (roughly 4 chars per token)
+                let input_tokens = (context_size / 4) as u64;
+                let output_tokens = (response.len() / 4) as u64;
+                
+                // Record stats for this agent
+                self.app_state.agent_pool.record_success(
+                    &agent.id,
+                    input_tokens,
+                    output_tokens,
+                    elapsed_ms,
+                    context_size,
+                ).await;
+
                 if response.trim().is_empty() {
                     self.app_state.log_error("chat_bot", "❌ Received empty response from provider");
                     return Err("Empty response from provider".to_string());
                 }
 
                 self.app_state
-                    .log_success("chat_bot", &format!("← Response: {} chars", response.len()));
+                    .log_success("chat_bot", &format!("← Response: {} chars in {:.0}ms", response.len(), elapsed_ms));
 
                 let reply = Message::new(
                     ChannelType::General,
@@ -411,7 +429,11 @@ Answer ONLY "YES" or "NO" (nothing else).
                 }
                 Ok(())
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+                self.app_state.agent_pool.record_failure(&agent.id, elapsed_ms).await;
+                Err(e)
+            }
         }
     }
 

@@ -71,6 +71,10 @@ struct GeminiContentResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 struct GeminiUsageMetadata {
+    #[serde(rename = "promptTokenCount")]
+    prompt_token_count: Option<usize>,
+    #[serde(rename = "candidatesTokenCount")]
+    candidates_token_count: Option<usize>,
     #[serde(rename = "totalTokenCount")]
     total_token_count: Option<usize>,
 }
@@ -304,8 +308,12 @@ impl AIProvider for GoogleProvider {
 
         let tokens_used = gemini_response
             .usage_metadata
+            .as_ref()
             .and_then(|u| u.total_token_count)
             .unwrap_or(0);
+        
+        let input_tokens = gemini_response.usage_metadata.as_ref().and_then(|u| u.prompt_token_count);
+        let output_tokens = gemini_response.usage_metadata.as_ref().and_then(|u| u.candidates_token_count);
 
         let finish_reason = gemini_response
             .candidates
@@ -335,6 +343,8 @@ impl AIProvider for GoogleProvider {
             text,
             model: request.model,
             tokens_used,
+            input_tokens,
+            output_tokens,
             finish_reason,
         })
     }

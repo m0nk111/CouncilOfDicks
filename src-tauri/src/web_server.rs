@@ -138,9 +138,25 @@ async fn get_config(State(state): State<WebState>) -> Response {
 }
 
 // Agent endpoints
+
+/// Agent with stats included
+#[derive(Serialize)]
+struct AgentWithStats {
+    #[serde(flatten)]
+    agent: crate::agents::Agent,
+    stats: crate::agents::AgentStats,
+}
+
 async fn list_agents(State(state): State<WebState>) -> Response {
     let agents = state.agent_pool.list_agents().await;
-    (StatusCode::OK, Json(ApiResponse::ok(agents))).into_response()
+    let all_stats = state.agent_pool.get_all_stats().await;
+    
+    let agents_with_stats: Vec<AgentWithStats> = agents.into_iter().map(|agent| {
+        let stats = all_stats.get(&agent.id).cloned().unwrap_or_default();
+        AgentWithStats { agent, stats }
+    }).collect();
+    
+    (StatusCode::OK, Json(ApiResponse::ok(agents_with_stats))).into_response()
 }
 
 async fn create_agent(
@@ -194,6 +210,19 @@ async fn delete_agent(State(state): State<WebState>, Json(payload): Json<Value>)
             .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, Json(ApiResponse::<String>::err(e))).into_response(),
     }
+}
+
+async fn get_all_agent_stats(State(state): State<WebState>) -> Response {
+    let stats = state.agent_pool.get_all_stats().await;
+    (StatusCode::OK, Json(ApiResponse::ok(stats))).into_response()
+}
+
+async fn get_agent_stats(
+    State(state): State<WebState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> Response {
+    let stats = state.agent_pool.get_agent_stats(&agent_id).await;
+    (StatusCode::OK, Json(ApiResponse::ok(stats))).into_response()
 }
 
 async fn reset_agent_identity(
@@ -520,6 +549,8 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/agents/create", post(create_agent))
         .route("/api/agents/delete", post(delete_agent))
         .route("/api/agents/reset-identity", post(reset_agent_identity))
+        .route("/api/agents/stats", get(get_all_agent_stats))
+        .route("/api/agents/stats/:agent_id", get(get_agent_stats))
         .route("/api/council/sessions", get(list_council_sessions))
         .route("/api/council/session", post(get_council_session))
         .route("/api/council/create", post(create_council_session))

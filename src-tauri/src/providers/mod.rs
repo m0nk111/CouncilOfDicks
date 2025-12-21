@@ -68,6 +68,12 @@ pub struct GenerationResponse {
     pub text: String,
     pub model: String,
     pub tokens_used: usize,
+    /// Input/prompt tokens (if available from provider)
+    #[serde(default)]
+    pub input_tokens: Option<usize>,
+    /// Output/completion tokens (if available from provider)
+    #[serde(default)]
+    pub output_tokens: Option<usize>,
     pub finish_reason: FinishReason,
 }
 

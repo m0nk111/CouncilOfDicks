@@ -59,6 +59,7 @@
     temperature?: number;
     tools?: string[];
     metadata?: Record<string, string>;
+    stats?: import("./api").AgentStats;
   };
 
   let activeSession: any = null;
@@ -295,6 +296,36 @@
     return participant.tools.join(", ");
   }
 
+  /** Format token count with K suffix for thousands */
+  function formatTokens(tokens: number): string {
+    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
+    return tokens.toString();
+  }
+
+  /** Format response time in ms or seconds */
+  function formatResponseTime(ms: number): string {
+    if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.round(ms)}ms`;
+  }
+
+  /** Format context size in chars or KB */
+  function formatContextSize(chars: number): string {
+    if (chars >= 1024) return `${(chars / 1024).toFixed(1)}KB`;
+    return `${chars} chars`;
+  }
+
+  /** Format timestamp as relative time */
+  function formatLastActivity(timestamp: number): string {
+    if (!timestamp) return "Never";
+    const now = Date.now() / 1000;
+    const diff = now - timestamp;
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  }
+
   async function loadAgentRoster() {
     try {
       const agents = await agentList();
@@ -311,6 +342,7 @@
           temperature: agent.temperature,
           tools: agent.enabled_tools || [],
           metadata: agent.metadata || {},
+          stats: agent.stats,
         }));
         updateParticipantState(roster, "agents");
       } else if (participantsSource !== "session") {
@@ -842,6 +874,38 @@
                 <div class="hover-row">
                   <span class="label">Temperature</span>
                   <span>{participant.temperature.toFixed(1)}</span>
+                </div>
+              {/if}
+
+              <!-- Agent Statistics Section -->
+              {#if participant.stats && participant.stats.total_requests > 0}
+                <div class="hover-section-title">📊 Statistics</div>
+                
+                <div class="hover-row">
+                  <span class="label">Requests</span>
+                  <span>{participant.stats.successful_requests}/{participant.stats.total_requests} ({Math.round((participant.stats.successful_requests / participant.stats.total_requests) * 100)}%)</span>
+                </div>
+
+                <div class="hover-row">
+                  <span class="label">Tokens</span>
+                  <span>↑{formatTokens(participant.stats.total_input_tokens)} ↓{formatTokens(participant.stats.total_output_tokens)}</span>
+                </div>
+
+                <div class="hover-row">
+                  <span class="label">Avg Time</span>
+                  <span>{formatResponseTime(participant.stats.avg_response_time_ms)}</span>
+                </div>
+
+                {#if participant.stats.last_context_size > 0}
+                  <div class="hover-row">
+                    <span class="label">Last Context</span>
+                    <span>{formatContextSize(participant.stats.last_context_size)}</span>
+                  </div>
+                {/if}
+
+                <div class="hover-row">
+                  <span class="label">Last Active</span>
+                  <span>{formatLastActivity(participant.stats.last_activity)}</span>
                 </div>
               {/if}
 
@@ -1522,6 +1586,15 @@
 
   .hover-icon {
     font-size: 1.5rem;
+  }
+
+  .hover-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #7d90b2;
+    margin: 0.5rem 0 0.25rem 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .hover-row {
