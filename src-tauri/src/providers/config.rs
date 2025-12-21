@@ -228,18 +228,21 @@ Rules:
         model_name, provider_name, existing_list, user_context, roles_list
     );
     
-    // Determine which provider to use based on what's available
-    let (use_provider, use_model) = if provider_name.to_lowercase() != "ollama" 
-        && provider_dispatch::is_provider_configured(provider_name, &config) 
-    {
-        // Use the same provider as the agent being created
+    // Determine which provider to use - use the SAME provider/model as the agent
+    // This ensures Ollama agents use Ollama for identity generation (GPU activity)
+    let (use_provider, use_model) = if provider_name.to_lowercase() == "ollama" {
+        // For Ollama agents, use the same Ollama model
+        ("ollama".to_string(), model_name.to_string())
+    } else if provider_dispatch::is_provider_configured(provider_name, &config) {
+        // For other providers, use their own model
         (provider_name.to_string(), model_name.to_string())
     } else if provider_dispatch::is_provider_configured("openai", &config) {
+        // Fallback to OpenAI if the provider isn't configured
         ("openai".to_string(), "gpt-4o-mini".to_string())
     } else if provider_dispatch::is_provider_configured("google", &config) {
         ("google".to_string(), "gemini-1.5-flash".to_string())
     } else {
-        // Fall back to Ollama with a small model
+        // Final fallback to default Ollama model
         ("ollama".to_string(), config.ollama_model.clone())
     };
     
