@@ -34,13 +34,13 @@ This is a **decentralized P2P network** for AI consensus deliberation. Multiple 
 ## Global Workspace Rules (Applied from User Standards)
 
 ### Project Structure Convention
-- **Root Directory Rule**: Project root may ONLY contain `README.md` and `CHANGELOG.md`
+- **Root Directory Rule**: Project root should contain only README.md and CHANGELOG.md plus standard tool manifests/config (e.g., LICENSE, pyproject.toml, package.json, Cargo.toml, docker-compose*.yml, .gitignore, .github/, .vscode/)
 - **All other files must be organized in subdirectories** with a narrow and deep tree structure
 - **Rationale**: Keep root clean, promote organization, easier navigation, clear project structure
 - **Examples**:
   - ✅ GOOD: `/docs/ARCHITECTURE.md`, `/src/main.rs`, `/scripts/build.sh`
   - ❌ BAD: `/ARCHITECTURE.md`, `/main.rs`, `/build.sh` (all should be in subdirectories)
-- **Exception**: Standard project files like `.gitignore`, `.github/`, `LICENSE`, `COMMERCIAL.md` are allowed in root
+- **Todo Location**: Store persistent todos in `docs/TODO_LIST.md` (do not create `TODO_LIST.md` in repo root)
 
 ### Communication & Documentation
 - **User Communication**: Dutch when appropriate for discussions
@@ -85,7 +85,7 @@ When implementing any feature:
 
 ### Implemented (v0.3.0-alpha)
 - **Backend**: Rust (Tauri 2.0, tokio async runtime, Arc<Mutex> state)
-- **Frontend**: Svelte 5 + TypeScript + Vite (dev server on port 5174)
+- **Frontend**: Svelte 5 + TypeScript + Vite (dev server on port 5175)
 - **P2P**: libp2p 0.54 (tcp, mdns, gossipsub, kademlia, noise encryption, yamux multiplexing)
 - **AI Models**: Ollama API (http://192.168.1.5:11434, default model: qwen2.5-coder:7b)
 - **Crypto**: ed25519-dalek 2.1 (digital signatures, 50μs sign, 150μs verify)

@@ -56,6 +56,10 @@ Thumbs.db
 # Local dev
 *.local
 .cache/
+vite.config.ts.timestamp-*.mjs
+*.code-workspace
+test/console*.txt
+test/consolerrors.txt
 
 # Knowledge bank (local testing)
 *.db

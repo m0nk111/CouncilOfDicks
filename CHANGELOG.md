@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- chore(agents): remove the repo-local `monks` Copilot agent copy so this workspace resolves shared agents from `/home/flip/github-copilot-config/.github/agents/`
+- docs(systemd): add user service units for headless UI (:5175) and web server (:8080)
+- refactor(providers): route council and question generation through generic default provider config while keeping explicit Ollama/Guardian compatibility endpoints
+
 ### Added (2025-12-21)
 - **Per-Agent Timeout**: Agents can now have custom `timeout_secs` in config for slow models
 - **Agent Statistics**: Full stats tracking (requests, tokens, response times) visible on agent cards
