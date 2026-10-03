@@ -1,0 +1,18 @@
+[Unit]
+Description=Council Of Dicks UI (Vite dev server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/flip/TheCouncelOfDicks
+Environment=NODE_ENV=development
+Environment=TAURI_DEV_PORT=5175
+# systemd user units often run with a minimal PATH.
+# Use the absolute pnpm path to avoid "pnpm: No such file or directory".
+ExecStart=/home/flip/.local/share/pnpm/pnpm dev --host 0.0.0.0 --port 5175
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

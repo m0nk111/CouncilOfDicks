@@ -1,0 +1,14 @@
+[Unit]
+Description=Council Of Dicks Headless Web Server (API/WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/flip/TheCouncelOfDicks
+ExecStart=/home/flip/TheCouncelOfDicks/src-tauri/target/release/council-web-server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
