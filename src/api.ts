@@ -29,8 +29,17 @@ const API_BASE_URL = "";
 export interface AppConfig {
   ollama_url: string;
   ollama_model: string;
-  ollama_username?: string;
-  ollama_password?: string;
+  ollama_username?: string | null;
+  ollama_password?: string | null;
+  guardian_url?: string | null;
+  guardian_model?: string | null;
+  guardian_api_key?: string | null;
+  default_generation_provider: string;
+  default_generation_model?: string | null;
+  openai_base_url?: string | null;
+  openai_api_key?: string | null;
+  openrouter_api_key?: string | null;
+  google_api_key?: string | null;
   debug_enabled: boolean;
   user_handle?: string;
 }
@@ -738,11 +747,23 @@ export async function kbSearch(query: string, limit: number = 10): Promise<Searc
 export interface TopicStatus {
   is_running: boolean;
   current_topic: string | null;
-  interval_secs: number;
-  last_run: number | null;
   next_run_in_secs: number | null;
   queue_length: number;
+  topic_queue_length?: number;
+  queued_topics?: string[];
   next_agent?: string;
+}
+
+export interface TopicFeedItem {
+  title: string;
+  link?: string | null;
+  published?: string | null;
+}
+
+export interface TopicFeedPreview {
+  source_name: string;
+  resolved_url: string;
+  items: TopicFeedItem[];
 }
 
 // Topic Control Commands
@@ -758,13 +779,31 @@ export async function topicStop(): Promise<TopicStatus> {
   return await apiCall<TopicStatus>("topic_stop", "POST /api/topic/stop");
 }
 
+export async function topicEnqueue(topic: string): Promise<TopicStatus> {
+  return await apiCall<TopicStatus>("topic_enqueue", "POST /api/topic/enqueue", { topic });
+}
+
+export async function topicPreviewFeed(
+  url: string,
+  limit: number = 8,
+  sourceName?: string
+): Promise<TopicFeedPreview> {
+  return await apiCall<TopicFeedPreview>(
+    "topic_preview_feed",
+    "POST /api/topic/feed/preview",
+    { url, limit, source_name: sourceName ?? null }
+  );
+}
+
 export async function topicHistory(limit: number = 10): Promise<Array<[string, number]>> {
   return await apiCall<Array<[string, number]>>("topic_history", "GET /api/topic/history", { limit });
 }
 
 export interface ChatBotStatus {
   queue: string[];
+  queue_stages: string[];
   current_thinking: string | null;
+  current_stage: string | null;
   current_reasoning: string | null;
 }
 

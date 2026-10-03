@@ -9,6 +9,7 @@
     getConfig,
     saveConfig,
     isTauriEnvironment,
+    type AppConfig,
     type ProviderConfig,
     type ProviderType,
     type ProviderHealth,
@@ -19,9 +20,15 @@
   let testingProvider: string | null = null;
   let providerHealth: Record<string, ProviderHealth> = {};
   let isTauri = false;
-  let currentConfig: any = {};
+  let currentConfig: AppConfig | null = null;
   
   // Global config
+  let defaultGenerationProvider = "guardian";
+  let defaultGenerationModel = "qwen2.5-coder:7b";
+  let openAICompatibleBaseUrl = "";
+  let guardianBaseUrl = "http://127.0.0.1:11434";
+  let guardianModel = "qwen3-coder-30b-q4km-32k:latest";
+  let guardianApiKey = "";
   let globalOllamaUrl = "http://192.168.1.5:11434";
   let globalOllamaModel = "qwen2.5-coder:7b";
   let globalOllamaUsername = "";
@@ -56,6 +63,12 @@
     try {
       const config = await getConfig();
       currentConfig = config;
+      defaultGenerationProvider = config.default_generation_provider || "guardian";
+      defaultGenerationModel = config.default_generation_model || config.guardian_model || config.ollama_model;
+      openAICompatibleBaseUrl = config.openai_base_url || "";
+      guardianBaseUrl = config.guardian_url || "http://127.0.0.1:11434";
+      guardianModel = config.guardian_model || config.ollama_model;
+      guardianApiKey = config.guardian_api_key || "";
       globalOllamaUrl = config.ollama_url;
       globalOllamaModel = config.ollama_model;
       globalOllamaUsername = config.ollama_username || "";
@@ -68,8 +81,18 @@
 
   async function handleSaveGlobalConfig() {
     try {
+      if (!currentConfig) {
+        throw new Error("Global config not loaded yet");
+      }
+
       const newConfig = {
         ...currentConfig,
+        default_generation_provider: defaultGenerationProvider,
+        default_generation_model: defaultGenerationModel || null,
+        openai_base_url: openAICompatibleBaseUrl || null,
+        guardian_url: guardianBaseUrl || null,
+        guardian_model: guardianModel || null,
+        guardian_api_key: guardianApiKey || null,
         ollama_url: globalOllamaUrl,
         ollama_model: globalOllamaModel,
         ollama_username: globalOllamaUsername || null,
@@ -231,35 +254,108 @@
   <!-- Global Ollama Configuration -->
   <div class="global-config">
     <div class="config-header">
-      <h3>🌐 Global Ollama Configuration</h3>
+      <h3>🌐 Generation Routing Configuration</h3>
       {#if isTauri}
         <button class="btn-save" on:click={handleSaveGlobalConfig}>💾 Save Config</button>
       {/if}
     </div>
     <div class="config-grid">
       <div class="config-item">
-        <label>Ollama Server URL</label>
+        <label for="default-generation-provider">Default Provider</label>
+        <select
+          id="default-generation-provider"
+          bind:value={defaultGenerationProvider}
+          disabled={!isTauri}
+        >
+          <option value="guardian">Guardian (Local OpenAI-Compatible)</option>
+          <option value="ollama">Ollama / Guardian</option>
+          <option value="openai">OpenAI-Compatible</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="google">Google Gemini</option>
+        </select>
+        <span class="config-hint">Used by generic generation flows like question generation and fallback council routing.</span>
+      </div>
+      <div class="config-item">
+        <label for="guardian-base-url">Guardian Base URL</label>
+        <input
+          id="guardian-base-url"
+          type="text"
+          bind:value={guardianBaseUrl}
+          placeholder="http://127.0.0.1:11434"
+          readonly={!isTauri}
+        />
+        <span class="config-hint">Local Guardian proxy. The app will automatically use its OpenAI-compatible /v1 API.</span>
+      </div>
+      <div class="config-item">
+        <label for="guardian-model">Guardian Local Model</label>
+        <input
+          id="guardian-model"
+          type="text"
+          bind:value={guardianModel}
+          placeholder="qwen3-coder-30b-q4km-32k:latest"
+          readonly={!isTauri}
+        />
+        <span class="config-hint">Primary local model for Guardian-routed flows and local agents.</span>
+      </div>
+      <div class="config-item">
+        <label for="guardian-api-key">Guardian API Key</label>
+        <input
+          id="guardian-api-key"
+          type="password"
+          bind:value={guardianApiKey}
+          placeholder="Optional if auto-discovered locally"
+          readonly={!isTauri}
+        />
+        <span class="config-hint">Bearer token for Guardian. If left empty, TCOD tries to auto-discover a local key for your handle.</span>
+      </div>
+      <div class="config-item">
+        <label for="default-generation-model">Default Generation Model</label>
+        <input
+          id="default-generation-model"
+          type="text"
+          bind:value={defaultGenerationModel}
+          placeholder="qwen3-coder-30b-q4km-32k:latest"
+          readonly={!isTauri}
+        />
+        <span class="config-hint">Applies to provider-agnostic flows. Leave aligned with your primary backend.</span>
+      </div>
+      <div class="config-item">
+        <label for="openai-compatible-base-url">OpenAI-Compatible Base URL</label>
+        <input
+          id="openai-compatible-base-url"
+          type="text"
+          bind:value={openAICompatibleBaseUrl}
+          placeholder="https://your-endpoint.example/v1"
+          readonly={!isTauri}
+        />
+        <span class="config-hint">Optional. Use this for RunPod or other remote OpenAI-compatible endpoints when provider = openai.</span>
+      </div>
+      <div class="config-item">
+        <label for="global-ollama-url">Ollama Server URL</label>
         <input 
+          id="global-ollama-url"
           type="text" 
           bind:value={globalOllamaUrl} 
           placeholder="http://192.168.1.5:11434"
           readonly={!isTauri}
         />
-        <span class="config-hint">Current: {globalOllamaUrl}</span>
+        <span class="config-hint">Guardian/Ollama compatibility endpoint for explicit Ollama flows and local backends.</span>
       </div>
       <div class="config-item">
-        <label>Default Model</label>
+        <label for="global-ollama-model">Ollama / Guardian Model</label>
         <input 
+          id="global-ollama-model"
           type="text" 
           bind:value={globalOllamaModel} 
           placeholder="qwen2.5-coder:7b"
           readonly={!isTauri}
         />
-        <span class="config-hint">Current: {globalOllamaModel}</span>
+        <span class="config-hint">Still used by explicit Ollama endpoints and backward-compatible local flows.</span>
       </div>
       <div class="config-item">
-        <label>Username (Optional)</label>
+        <label for="global-ollama-username">Guardian / Ollama Username</label>
         <input 
+          id="global-ollama-username"
           type="text" 
           bind:value={globalOllamaUsername} 
           placeholder="Optional basic auth username"
@@ -267,8 +363,9 @@
         />
       </div>
       <div class="config-item">
-        <label>Password (Optional)</label>
+        <label for="global-ollama-password">Guardian / Ollama Password</label>
         <input 
+          id="global-ollama-password"
           type="password" 
           bind:value={globalOllamaPassword} 
           placeholder="Optional basic auth password"
@@ -276,7 +373,7 @@
         />
       </div>
       <div class="config-item">
-        <label>Debug Mode</label>
+        <span class="config-label">Debug Mode</span>
         <div class="toggle-wrapper">
           <span>{globalDebugEnabled ? "Enabled" : "Disabled"}</span>
           <span class="config-hint">{isTauri ? "Can be changed via debug toggle" : "Cannot be changed from web UI"}</span>
@@ -295,8 +392,8 @@
       <h3>Add New Provider</h3>
 
       <div class="form-group">
-        <label>Provider Type</label>
-        <select bind:value={formType}>
+        <label for="provider-type">Provider Type</label>
+        <select id="provider-type" bind:value={formType}>
           <option value="ollama">Ollama (Local/Network)</option>
           <option value="openai">OpenAI</option>
           <option value="anthropic">Anthropic (Claude)</option>
@@ -304,9 +401,10 @@
       </div>
 
       <div class="form-group">
-        <label>Username</label>
+        <label for="provider-username">Username</label>
         <div class="input-with-button">
           <input
+            id="provider-username"
             type="text"
             bind:value={formUsername}
             placeholder="e.g., CodeWhisperer, OracleGPT"
@@ -319,8 +417,9 @@
       </div>
 
       <div class="form-group">
-        <label>Display Name</label>
+        <label for="provider-display-name">Display Name</label>
         <input
+          id="provider-display-name"
           type="text"
           bind:value={formDisplayName}
           placeholder="e.g., My Local Qwen, GPT-4 Production"
@@ -329,8 +428,9 @@
 
       {#if formType === "ollama"}
         <div class="form-group">
-          <label>Base URL</label>
+          <label for="ollama-base-url">Base URL</label>
           <input
+            id="ollama-base-url"
             type="text"
             bind:value={ollamaBaseUrl}
             placeholder="http://192.168.1.5:11434"
@@ -338,8 +438,9 @@
         </div>
 
         <div class="form-group">
-          <label>Default Model</label>
+          <label for="ollama-default-model">Default Model</label>
           <input
+            id="ollama-default-model"
             type="text"
             bind:value={ollamaDefaultModel}
             placeholder="qwen2.5-coder:7b"
@@ -347,8 +448,9 @@
         </div>
 
         <div class="form-group">
-          <label>Embedding Model</label>
+          <label for="ollama-embedding-model">Embedding Model</label>
           <input
+            id="ollama-embedding-model"
             type="text"
             bind:value={ollamaEmbeddingModel}
             placeholder="nomic-embed-text"
@@ -358,8 +460,9 @@
 
       {#if formType === "openai"}
         <div class="form-group">
-          <label>API Key</label>
+          <label for="openai-api-key">API Key</label>
           <input
+            id="openai-api-key"
             type="password"
             bind:value={openaiApiKey}
             placeholder="sk-..."
@@ -368,8 +471,9 @@
         </div>
 
         <div class="form-group">
-          <label>Default Model</label>
+          <label for="openai-default-model">Default Model</label>
           <input
+            id="openai-default-model"
             type="text"
             bind:value={openaiDefaultModel}
             placeholder="gpt-4-turbo-preview"
@@ -377,8 +481,9 @@
         </div>
 
         <div class="form-group">
-          <label>Base URL (optional)</label>
+          <label for="openai-base-url">Base URL (optional)</label>
           <input
+            id="openai-base-url"
             type="text"
             bind:value={openaiBaseUrl}
             placeholder="https://api.openai.com/v1"
@@ -386,8 +491,9 @@
         </div>
 
         <div class="form-group">
-          <label>Organization (optional)</label>
+          <label for="openai-organization">Organization (optional)</label>
           <input
+            id="openai-organization"
             type="text"
             bind:value={openaiOrganization}
             placeholder="org-..."
@@ -397,8 +503,9 @@
 
       {#if formType === "anthropic"}
         <div class="form-group">
-          <label>API Key</label>
+          <label for="anthropic-api-key">API Key</label>
           <input
+            id="anthropic-api-key"
             type="password"
             bind:value={anthropicApiKey}
             placeholder="sk-ant-..."
@@ -407,8 +514,9 @@
         </div>
 
         <div class="form-group">
-          <label>Default Model</label>
+          <label for="anthropic-default-model">Default Model</label>
           <input
+            id="anthropic-default-model"
             type="text"
             bind:value={anthropicDefaultModel}
             placeholder="claude-3-opus-20240229"
@@ -425,8 +533,8 @@
         </div>
 
         <div class="form-group">
-          <label>Priority</label>
-          <input type="number" bind:value={formPriority} min="0" max="100" />
+          <label for="provider-priority">Priority</label>
+          <input id="provider-priority" type="number" bind:value={formPriority} min="0" max="100" />
         </div>
       </div>
 
@@ -598,7 +706,17 @@
     font-family: 'Courier New', monospace;
   }
 
-  .config-item input:read-only {
+  .config-item select {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #e0e0e0;
+  }
+
+  .config-item input:read-only,
+  .config-item select:disabled {
     cursor: not-allowed;
     opacity: 0.7;
   }

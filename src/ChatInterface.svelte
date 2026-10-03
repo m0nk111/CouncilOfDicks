@@ -588,10 +588,14 @@
           <button on:click={saveHandle}>💾</button>
         </div>
       {:else}
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="user-info handle-display" on:click={() => showHandleInput = true} title="Click to change handle">
+        <button
+          type="button"
+          class="user-info handle-display"
+          on:click={() => showHandleInput = true}
+          title="Click to change handle"
+        >
           @{username} ✏️
-        </div>
+        </button>
       {/if}
     </div>
 
@@ -740,15 +744,15 @@
       {#if showAutocomplete}
         <div class="autocomplete-popup">
           {#each autocompleteAgents.filter(a => getHandle(a).toLowerCase().includes(autocompleteFilter) || a.name.toLowerCase().includes(autocompleteFilter)) as agent, i}
-            <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <div 
+            <button
+              type="button"
               class="autocomplete-item" 
               class:selected={i === autocompleteIndex}
               on:click={() => selectAgent(agent)}
             >
               <span class="handle">@{getHandle(agent)}</span>
               <span class="name">{agent.name}</span>
-            </div>
+            </button>
           {/each}
         </div>
       {/if}
@@ -791,13 +795,11 @@
     <div class="members-list">
       {#if participants.length > 0}
         {#each participants as participant (participant.id)}
-          <button
-            type="button"
+          <div
             class="member"
+            role="group"
             on:mouseenter={() => (hoveredParticipant = participant)}
             on:mouseleave={() => (hoveredParticipant = null)}
-            on:focus={() => (hoveredParticipant = participant)}
-            on:blur={() => (hoveredParticipant = null)}
           >
             <div class="member-avatar">{participant.kind === "human" ? "👤" : "🤖"}</div>
             <div class="member-info">
@@ -935,7 +937,7 @@
                 </div>
               {/if}
             </div>
-          </button>
+          </div>
         {/each}
       {:else}
         <div class="empty-members">
@@ -1461,14 +1463,6 @@
     opacity: 0.6;
   }
   
-  .member-handle {
-    font-size: 0.75rem;
-    color: #666;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   .member-status {
     font-size: 0.75rem;
     color: #4ade80;

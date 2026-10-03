@@ -14,10 +14,18 @@
 
 {#if showSettings}
   <!-- Settings Modal -->
-  <div class="modal-overlay" on:click={() => (showSettings = false)} role="dialog">
-    <div class="modal-content" on:click|stopPropagation role="document">
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="settings-modal-title"
+    tabindex="-1"
+    on:click|self={() => (showSettings = false)}
+    on:keydown={(event) => event.key === "Escape" && (showSettings = false)}
+  >
+    <div class="modal-content" role="document">
       <div class="modal-header">
-        <h2>⚙️ Settings</h2>
+        <h2 id="settings-modal-title">⚙️ Settings</h2>
         <button class="close-btn" on:click={() => (showSettings = false)}>✕</button>
       </div>
       <ProvidersPanel />
@@ -27,10 +35,18 @@
 
 {#if showCouncil}
   <!-- Council Modal -->
-  <div class="modal-overlay" on:click={() => (showCouncil = false)} role="dialog">
-    <div class="modal-content modal-wide" on:click|stopPropagation role="document">
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="council-modal-title"
+    tabindex="-1"
+    on:click|self={() => (showCouncil = false)}
+    on:keydown={(event) => event.key === "Escape" && (showCouncil = false)}
+  >
+    <div class="modal-content modal-wide" role="document">
       <div class="modal-header">
-        <h2>🏛️ Council</h2>
+        <h2 id="council-modal-title">🏛️ Council</h2>
         <button class="close-btn" on:click={() => (showCouncil = false)}>✕</button>
       </div>
       <CouncilPanel />
@@ -40,10 +56,18 @@
 
 {#if showTopic}
   <!-- Topic Modal -->
-  <div class="modal-overlay" on:click={() => (showTopic = false)} role="dialog">
-    <div class="modal-content" on:click|stopPropagation role="document">
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="topic-modal-title"
+    tabindex="-1"
+    on:click|self={() => (showTopic = false)}
+    on:keydown={(event) => event.key === "Escape" && (showTopic = false)}
+  >
+    <div class="modal-content" role="document">
       <div class="modal-header">
-        <h2>📢 Topic Channel</h2>
+        <h2 id="topic-modal-title">📢 Topic Channel</h2>
         <button class="close-btn" on:click={() => (showTopic = false)}>✕</button>
       </div>
       <TopicControl />
@@ -53,10 +77,18 @@
 
 {#if showConstitution}
   <!-- Constitution Modal -->
-  <div class="modal-overlay" on:click={() => (showConstitution = false)} role="dialog">
-    <div class="modal-content modal-wide" on:click|stopPropagation role="document">
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="constitution-modal-title"
+    tabindex="-1"
+    on:click|self={() => (showConstitution = false)}
+    on:keydown={(event) => event.key === "Escape" && (showConstitution = false)}
+  >
+    <div class="modal-content modal-wide" role="document">
       <div class="modal-header">
-        <h2>📜 Constitution</h2>
+        <h2 id="constitution-modal-title">📜 Constitution</h2>
         <button class="close-btn" on:click={() => (showConstitution = false)}>✕</button>
       </div>
       <ConstitutionPanel />
