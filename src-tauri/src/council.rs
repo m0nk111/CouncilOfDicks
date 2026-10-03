@@ -1,6 +1,9 @@
 // Council session manager for multi-round deliberation
 
 use crate::agents::{Agent, AgentPool};
+use crate::config::AppConfig;
+use crate::logger::Logger;
+use crate::provider_dispatch;
 use crate::protocol::{CouncilResponse, CouncilSession, SessionStatus, VoteCommitment, VoteReveal};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -336,11 +339,11 @@ impl CouncilSessionManager {
         question: String,
         agent_pool: Arc<AgentPool>,
         agent_ids: Vec<String>,
-        ollama_url: &str,
-        auth: Option<(String, String)>,
+        config: AppConfig,
+        logger: Arc<Logger>,
     ) -> Result<String, String> {
         self.create_session_with_agents_and_timeout(
-            question, agent_pool, agent_ids, ollama_url, 30, auth, // Default 30 second timeout
+            question, agent_pool, agent_ids, config, logger, 30, // Default 30 second timeout
         )
         .await
     }
@@ -356,9 +359,9 @@ impl CouncilSessionManager {
         question: String,
         agent_pool: Arc<AgentPool>,
         agent_ids: Vec<String>,
-        ollama_url: &str,
+        config: AppConfig,
+        logger: Arc<Logger>,
         timeout_seconds: u64,
-        auth: Option<(String, String)>,
     ) -> Result<String, String> {
         use tokio::time::{timeout, Duration};
 
@@ -380,13 +383,13 @@ impl CouncilSessionManager {
         for agent in agents {
             let session_id = session_id.clone();
             let question = question.clone();
-            let ollama_url = ollama_url.to_string();
             let self_clone = self.clone();
-            let auth_clone = auth.clone();
+            let config_clone = config.clone();
+            let logger_clone = logger.clone();
 
             let handle = tokio::spawn(async move {
                 self_clone
-                    .gather_agent_response(&session_id, &agent, &question, &ollama_url, auth_clone)
+                    .gather_agent_response(&session_id, &agent, &question, &config_clone, logger_clone)
                     .await
             });
 
@@ -460,16 +463,24 @@ impl CouncilSessionManager {
         session_id: &str,
         agent: &Agent,
         question: &str,
-        ollama_url: &str,
-        auth: Option<(String, String)>,
+        config: &AppConfig,
+        logger: Arc<Logger>,
     ) -> Result<(), String> {
         // Build prompt with agent's system context
         let system_prompt = crate::prompt::compose_system_prompt(&agent.system_prompt);
         let prompt = format!("Question: {}\n\nProvide your analysis and recommendation.", question);
 
-        // Call Ollama API
-        let auth_ref = auth.as_ref().map(|(u, p)| (u.as_str(), p.as_str()));
-        let response = crate::ollama::ask_ollama_with_auth(ollama_url, &agent.model, prompt, Some(system_prompt), auth_ref).await?;
+        // Use the agent's configured provider rather than a hardcoded global Ollama route.
+        let response = provider_dispatch::generate_with_timeout(
+            &agent.provider,
+            &agent.model,
+            prompt,
+            Some(system_prompt),
+            config,
+            Some(logger),
+            agent.timeout_secs,
+        )
+        .await?;
 
         // Add response to session
         self.add_response(
@@ -761,19 +772,19 @@ mod tests {
         let agent1_id = pool.add_agent(agent1).await.unwrap();
         let agent2_id = pool.add_agent(agent2).await.unwrap();
 
-        // Note: This test verifies the API exists, but won't actually call Ollama
-        // In a real scenario, you'd mock the Ollama client
+        // Note: This test verifies the API exists.
         let result = manager
             .create_session_with_agents(
                 "Test question?".to_string(),
                 pool,
                 vec![agent1_id, agent2_id],
-                "http://localhost:11434", // Won't actually connect in unit tests
-                None,
+                crate::config::AppConfig::default(),
+                Arc::new(crate::logger::Logger::new(false)),
             )
             .await;
 
-        // We expect this to fail since Ollama isn't running, but the API should be callable
+        // We expect this to fail in environments without a reachable provider,
+        // but the API should remain callable.
         assert!(result.is_err() || result.is_ok());
     }
 }

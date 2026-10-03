@@ -276,12 +276,18 @@ async fn generate_question(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<String>, ApiError> {
     let config = state.get_config();
-    let model = config.ollama_model.clone();
-    let url = config.ollama_url.clone();
 
     let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
 
-    match crate::ollama::ask_ollama(&url, &model, prompt).await {
+    match crate::provider_dispatch::generate_with_default(
+        prompt,
+        None,
+        &config,
+        Some(state.logger.clone()),
+        None,
+    )
+    .await
+    {
         Ok(question) => Ok(Json(question.trim().to_string())),
         Err(e) => Err(ApiError::InternalError(format!("Failed to generate question: {}", e))),
     }

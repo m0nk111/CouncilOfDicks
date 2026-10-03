@@ -53,8 +53,8 @@ pub struct RAGContext {
 pub struct KnowledgeBank {
     pool: SqlitePool,
     logger: Arc<Logger>,
-    ollama_url: String,
-    ollama_auth: Option<(String, String)>,
+    local_api_url: String,
+    guardian_api_key: Option<String>,
     embedding_model: String,
 }
 
@@ -63,8 +63,8 @@ impl KnowledgeBank {
     pub async fn new(
         db_path: &str,
         logger: Arc<Logger>,
-        ollama_url: String,
-        ollama_auth: Option<(String, String)>,
+        local_api_url: String,
+        guardian_api_key: Option<String>,
     ) -> Result<Self, String> {
         logger.log(
             LogLevel::Info,
@@ -79,8 +79,8 @@ impl KnowledgeBank {
         let kb = Self {
             pool,
             logger: logger.clone(),
-            ollama_url,
-            ollama_auth,
+            local_api_url,
+            guardian_api_key,
             embedding_model: "nomic-embed-text".to_string(),
         };
 
@@ -428,12 +428,10 @@ impl KnowledgeBank {
         Ok(())
     }
 
-    /// Generate embedding using Ollama
+    /// Generate embedding using the local Guardian/Ollama-compatible endpoint
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, String> {
-        // Use the existing Ollama client
-        // Note: This assumes the embedding model is pulled and available
         let client = reqwest::Client::new();
-        let url = format!("{}/api/embeddings", self.ollama_url);
+        let url = format!("{}/api/embeddings", self.local_api_url.trim_end_matches('/'));
         
         let payload = serde_json::json!({
             "model": self.embedding_model,
@@ -441,25 +439,24 @@ impl KnowledgeBank {
         });
 
         let mut request = client.post(&url).json(&payload);
-        
-        // Add basic auth if configured
-        if let Some((username, password)) = &self.ollama_auth {
-            request = request.basic_auth(username, Some(password));
+
+        if let Some(api_key) = &self.guardian_api_key {
+            request = request.bearer_auth(api_key);
         }
 
         let res = request
             .send()
             .await
-            .map_err(|e| format!("Failed to call Ollama: {}", e))?;
+            .map_err(|e| format!("Failed to call local embedding endpoint: {}", e))?;
 
         if !res.status().is_success() {
-            return Err(format!("Ollama error: {}", res.status()));
+            return Err(format!("Local embedding endpoint error: {}", res.status()));
         }
 
         let body: serde_json::Value = res
             .json()
             .await
-            .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+            .map_err(|e| format!("Failed to parse embedding response: {}", e))?;
 
         let embedding = body["embedding"]
             .as_array()

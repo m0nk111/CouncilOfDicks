@@ -121,7 +121,7 @@ pub struct Agent {
 }
 
 fn default_provider() -> String {
-    "ollama".to_string()
+    "guardian".to_string()
 }
 
 impl Agent {
@@ -132,7 +132,7 @@ impl Agent {
             id: Uuid::new_v4().to_string(),
             name,
             handle,
-            provider: "ollama".to_string(),
+            provider: default_provider(),
             model,
             system_prompt,
             enabled_tools: vec!["send_message".to_string(), "vote".to_string()],
@@ -193,6 +193,8 @@ struct AgentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub handle: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     pub model: String,
     pub system_prompt: String,
@@ -234,6 +236,7 @@ impl AgentPool {
             AgentConfig {
                 name: agent.name.clone(),
                 handle: Some(agent.handle.clone()),
+                active: if agent.active { None } else { Some(false) },
                 provider: Some(agent.provider.clone()),
                 model: agent.model.clone(),
                 system_prompt: agent.system_prompt.clone(),

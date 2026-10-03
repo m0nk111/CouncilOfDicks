@@ -9,6 +9,8 @@ use tokio::time::sleep;
 pub struct TopicStatus {
     pub current_topic: Option<String>,
     pub queue_length: usize,
+    pub topic_queue_length: usize,
+    pub queued_topics: Vec<String>,
     pub next_run_in_secs: u64,
     pub is_running: bool,
     pub next_agent: Option<String>,
@@ -18,9 +20,17 @@ pub struct TopicManager {
     state: Arc<Mutex<TopicInternalState>>,
 }
 
+#[derive(Debug, Clone)]
+struct QueuedTopic {
+    topic: String,
+    interval_secs: u64,
+}
+
 struct TopicInternalState {
     current_topic: Option<String>,
     queue: VecDeque<String>, // Agent IDs
+    topic_queue: VecDeque<QueuedTopic>, // Pending topics
+    agents_initialized: bool,
     interval_secs: u64,
     is_running: bool,
     last_run: SystemTime,
@@ -39,7 +49,9 @@ impl TopicManager {
             state: Arc::new(Mutex::new(TopicInternalState {
                 current_topic: None,
                 queue: VecDeque::new(),
-                interval_secs: 600, // 10 minutes default
+                topic_queue: VecDeque::new(),
+                agents_initialized: false,
+                interval_secs: 300, // 5 minutes default
                 is_running: false,
                 last_run: SystemTime::now(),
                 last_topic_change: SystemTime::UNIX_EPOCH,
@@ -47,16 +59,21 @@ impl TopicManager {
         }
     }
 
+    fn validate_topic_text(topic: &str) -> Result<(), String> {
+        if topic.trim().is_empty() {
+            return Err("Topic cannot be empty".to_string());
+        }
+        if topic.len() > 100 {
+            return Err("Topic is too long (max 100 chars)".to_string());
+        }
+        Ok(())
+    }
+
     pub fn validate_topic_change(&self, new_topic: &str) -> Result<(), String> {
         let state = self.state.lock().unwrap();
         
         // Rule 1: Content validation
-        if new_topic.trim().is_empty() {
-            return Err("Topic cannot be empty".to_string());
-        }
-        if new_topic.len() > 100 {
-            return Err("Topic is too long (max 100 chars)".to_string());
-        }
+        Self::validate_topic_text(new_topic)?;
 
         // Rule 2: Minimum duration (Anti-spam)
         // Only enforce if there IS a current topic running AND it's not the same topic
@@ -93,6 +110,8 @@ impl TopicManager {
         }
         state.is_running = true;
         state.queue.clear(); // Reset queue on new topic
+        state.topic_queue.clear(); // Manual override clears queued topics
+        state.agents_initialized = false;
         // Reset timer so it starts soon
         state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs); 
         state.last_topic_change = SystemTime::now();
@@ -109,8 +128,56 @@ impl TopicManager {
         }
         state.is_running = true;
         state.queue.clear();
+        state.topic_queue.clear();
+        state.agents_initialized = false;
         state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs);
         state.last_topic_change = SystemTime::now();
+    }
+
+    /// Enqueue a topic to be discussed in #topic. Does not replace the current topic.
+    /// Posts a system message to #topic showing the current topic queue.
+    pub fn enqueue_topic(&self, topic: String) -> Result<(), String> {
+        Self::validate_topic_text(&topic)?;
+
+        let mut state = self.state.lock().unwrap();
+        // Queued topics run with a 5-minute interval between agents by default.
+        state.topic_queue.push_back(QueuedTopic {
+            topic,
+            interval_secs: 300,
+        });
+        state.is_running = true;
+        // Make it eligible to run soon.
+        state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs);
+        Ok(())
+    }
+
+    /// Enqueue a topic and immediately post a visible queue update message into #topic.
+    pub fn enqueue_topic_with_announcement(
+        &self,
+        app_state: &Arc<AppState>,
+        topic: String,
+    ) -> Result<(), String> {
+        Self::validate_topic_text(&topic)?;
+
+        let queued_topics = {
+            let mut state = self.state.lock().unwrap();
+            // Queued topics run with a 5-minute interval between agents by default.
+            state.topic_queue.push_back(QueuedTopic {
+                topic,
+                interval_secs: 300,
+            });
+            state.is_running = true;
+            // Make it eligible to run soon.
+            state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs);
+            state
+                .topic_queue
+                .iter()
+                .map(|t| t.topic.clone())
+                .collect::<Vec<String>>()
+        };
+
+        Self::post_topic_queue_message(app_state, &queued_topics);
+        Ok(())
     }
 
     pub async fn broadcast_topic(&self, app_state: Arc<AppState>, topic: String, interval: u64) {
@@ -132,6 +199,8 @@ impl TopicManager {
         state.is_running = false;
         state.current_topic = None;
         state.queue.clear();
+        state.topic_queue.clear();
+        state.agents_initialized = false;
     }
 
     pub fn get_status(&self) -> TopicStatus {
@@ -143,10 +212,49 @@ impl TopicManager {
         TopicStatus {
             current_topic: state.current_topic.clone(),
             queue_length: state.queue.len(),
+            topic_queue_length: state.topic_queue.len(),
+            queued_topics: state.topic_queue.iter().map(|t| t.topic.clone()).collect(),
             next_run_in_secs: next_run,
             is_running: state.is_running,
             next_agent: state.queue.front().cloned(),
         }
+    }
+
+    fn post_topic_queue_message(app_state: &Arc<AppState>, queued_topics: &[String]) {
+        let mut content = String::from("📥 Topic queue updated\n\n");
+        if queued_topics.is_empty() {
+            content.push_str("(queue is empty)");
+        } else {
+            for (i, t) in queued_topics.iter().enumerate() {
+                content.push_str(&format!("{}. {}\n", i + 1, t));
+            }
+        }
+
+        let message = crate::chat::Message::new(
+            crate::chat::ChannelType::Topic,
+            "System".to_string(),
+            crate::chat::AuthorType::System,
+            content,
+        );
+        let _ = app_state.channel_manager.send_message(message);
+    }
+
+    fn post_agent_queue_message(app_state: &Arc<AppState>, topic: &str, agent_names: &[String]) {
+        let mut content = format!("🧾 Agent queue for topic: {}\n\n", topic);
+        if agent_names.is_empty() {
+            content.push_str("(no active agents)");
+        } else {
+            for (i, name) in agent_names.iter().enumerate() {
+                content.push_str(&format!("{}. {}\n", i + 1, name));
+            }
+        }
+        let message = crate::chat::Message::new(
+            crate::chat::ChannelType::Topic,
+            "System".to_string(),
+            crate::chat::AuthorType::System,
+            content,
+        );
+        let _ = app_state.channel_manager.send_message(message);
     }
 
     // Called by the background loop
@@ -156,6 +264,27 @@ impl TopicManager {
             // If locked, we do not process any topics.
             // We could also log a warning if we haven't recently.
             return;
+        }
+
+        // If no current topic but queued topics exist, promote next topic.
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.current_topic.is_none() && !state.topic_queue.is_empty() {
+                let next = state.topic_queue.pop_front();
+                if let Some(queued) = next {
+                    state.current_topic = Some(queued.topic);
+                    state.queue.clear();
+                    state.agents_initialized = false;
+                    state.is_running = true;
+                    state.interval_secs = queued.interval_secs;
+                    state.last_run = SystemTime::now() - Duration::from_secs(state.interval_secs);
+
+                    let remaining: Vec<String> =
+                        state.topic_queue.iter().map(|t| t.topic.clone()).collect();
+                    drop(state);
+                    Self::post_topic_queue_message(&app_state, &remaining);
+                }
+            }
         }
 
         // First, check if we need to run, without holding the lock across await
@@ -174,40 +303,76 @@ impl TopicManager {
             return;
         }
 
-        // If we need to refill the queue, do it now (async)
-        let needs_refill = {
+        // If we need to initialize the agent queue for this topic, do it once.
+        let needs_init = {
             let state = self.state.lock().unwrap();
-            state.queue.is_empty()
+            state.current_topic.is_some() && !state.agents_initialized
         };
 
-        if needs_refill {
+        if needs_init {
             let agents = app_state.agent_pool.list_active_agents().await;
-            let mut state = self.state.lock().unwrap();
-            for agent in agents {
-                state.queue.push_back(agent.id);
-            }
+            let (topic, agent_names) = {
+                let mut state = self.state.lock().unwrap();
+                if state.current_topic.is_none() {
+                    return;
+                }
+                state.queue.clear();
+                let mut names = Vec::new();
+                for agent in agents {
+                    state.queue.push_back(agent.id);
+                    names.push(agent.name);
+                }
+                state.agents_initialized = true;
+                (state.current_topic.clone().unwrap_or_default(), names)
+            };
+
+            Self::post_agent_queue_message(&app_state, &topic, &agent_names);
         }
 
         // Now get the next agent and update state
-        let (topic, agent_id) = {
+        let (topic, agent_id, finished_topic) = {
             let mut state = self.state.lock().unwrap();
-            
+
             // Re-check conditions in case they changed
             if !state.is_running || state.current_topic.is_none() {
                 return;
             }
-            
-            if state.queue.is_empty() {
-                return;
-            }
 
-            let agent_id = state.queue.pop_front();
-            let topic = state.current_topic.clone();
-            
-            state.last_run = SystemTime::now();
-            
-            (topic, agent_id)
+            // If queue is empty and we already initialized for this topic, the round is finished.
+            if state.queue.is_empty() {
+                if state.agents_initialized {
+                    let finished = state.current_topic.clone();
+                    state.current_topic = None;
+                    state.agents_initialized = false;
+
+                    // If no queued topics remain, stop running.
+                    if state.topic_queue.is_empty() {
+                        state.is_running = false;
+                    }
+
+                    state.last_run = SystemTime::now();
+                    (None, None, finished)
+                } else {
+                    return;
+                }
+            } else {
+                let agent_id = state.queue.pop_front();
+                let topic = state.current_topic.clone();
+                state.last_run = SystemTime::now();
+                (topic, agent_id, None)
+            }
         };
+
+        if let Some(done) = finished_topic {
+            let message = crate::chat::Message::new(
+                crate::chat::ChannelType::Topic,
+                "System".to_string(),
+                crate::chat::AuthorType::System,
+                format!("✅ Topic round complete: {}", done),
+            );
+            let _ = app_state.channel_manager.send_message(message);
+            return;
+        }
 
         if let (Some(topic), Some(agent_id)) = (topic, agent_id) {
             // Execute the agent response
@@ -242,33 +407,19 @@ impl TopicManager {
                 let config = app_state.get_config();
                 // Use topic-specific system prompt WITHOUT TCOD framing
                 let system_prompt = crate::prompt::compose_topic_system_prompt(&agent.system_prompt);
-                
-                let provider = crate::providers::ollama::OllamaProvider::new(
-                    config.ollama_url.clone(),
-                    agent.model.clone(),
-                    app_state.logger.clone(),
-                ).with_auth(config.ollama_username.clone(), config.ollama_password.clone());
-                
-                use crate::providers::AIProvider;
-                // We need to use the AIProvider trait method `generate` or similar, but `ask` was my guess.
-                // Let's check `AIProvider` trait definition.
-                // Actually, let's just use `generate` which is likely the method name.
-                // Wait, I don't have the trait definition handy, but `ask` failed.
-                // Let's look at `src/providers/mod.rs` or similar if I could, but I'll guess `generate` based on `GenerationRequest`.
-                
-                let request = crate::providers::GenerationRequest {
-                    model: agent.model.clone(),
-                    prompt: prompt.clone(),
-                    system_prompt: Some(system_prompt),
-                    temperature: agent.temperature,
-                    max_tokens: None,
-                    stream: false,
-                };
 
-                match provider.generate(request).await {
+                match crate::provider_dispatch::generate_with_timeout(
+                    &agent.provider,
+                    &agent.model,
+                    prompt.clone(),
+                    Some(system_prompt),
+                    &config,
+                    Some(app_state.logger.clone()),
+                    agent.timeout_secs,
+                ).await {
                     Ok(response) => {
                         // Post to chat
-                        let message_content = format!("#topic {}\n\n{}", topic, response.text);
+                        let message_content = format!("#topic {}\n\n{}", topic, response);
                         
                         let message = crate::chat::Message::new(
                             crate::chat::ChannelType::Topic,
@@ -280,7 +431,7 @@ impl TopicManager {
                         let _ = app_state.channel_manager.send_message(message);
                     },
                     Err(e) => {
-                        app_state.logger.error("topic_manager", &format!("Agent {} failed to reply: {:?}", agent.name, e));
+                        app_state.logger.error("topic_manager", &format!("Agent {} failed to reply: {}", agent.name, e));
                     }
                 }
             }
@@ -292,7 +443,7 @@ impl TopicManager {
 pub fn start_topic_loop(app_state: Arc<AppState>) {
     tokio::spawn(async move {
         loop {
-            sleep(Duration::from_secs(5)).await; // Check every 5 seconds
+            sleep(Duration::from_secs(1)).await; // Check every 1 second (queue-driven)
             app_state.topic_manager.tick(app_state.clone()).await;
         }
     });

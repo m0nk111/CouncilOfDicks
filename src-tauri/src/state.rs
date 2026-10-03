@@ -80,13 +80,13 @@ impl AppState {
         let kb_path = data_dir.join("knowledge_bank.sqlite");
         let kb_url = format!("sqlite://{}", kb_path.to_string_lossy());
         
-        // Build auth tuple - Ollama Guardian uses username-only (app name), password optional
-        let ollama_auth = base_config.ollama_username.as_ref().map(|u| {
-            (u.clone(), base_config.ollama_password.clone().unwrap_or_default())
-        });
-        
         let knowledge_bank =
-            match KnowledgeBank::new(&kb_url, logger.clone(), base_config.ollama_url.clone(), ollama_auth).await
+            match KnowledgeBank::new(
+                &kb_url,
+                logger.clone(),
+                base_config.resolved_guardian_legacy_url(),
+                base_config.guardian_api_key.clone(),
+            ).await
             {
                 Ok(bank) => Some(Arc::new(bank)),
                 Err(e) => {
@@ -183,6 +183,7 @@ impl AppState {
                 struct AgentConfig {
                     name: String,
                     handle: Option<String>,
+                    active: Option<bool>,
                     provider: Option<String>,
                     model: String,
                     system_prompt: String,
@@ -205,6 +206,9 @@ impl AppState {
                             }
                             if let Some(timeout) = config.timeout_secs {
                                 agent.timeout_secs = Some(timeout);
+                            }
+                            if let Some(active) = config.active {
+                                agent.active = active;
                             }
                             if let Some(metadata) = config.metadata {
                                 agent.metadata = metadata;

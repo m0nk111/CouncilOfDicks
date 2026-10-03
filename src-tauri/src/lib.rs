@@ -235,10 +235,6 @@ async fn council_create_session_with_agents(
     );
 
     let config = state.get_config();
-    // Ollama Guardian uses username-only auth (app name), password is optional
-    let auth = config.ollama_username.as_ref().map(|u| {
-        (u.clone(), config.ollama_password.clone().unwrap_or_default())
-    });
 
     let session_id = state
         .council_manager
@@ -246,8 +242,8 @@ async fn council_create_session_with_agents(
             question,
             state.agent_pool.clone(),
             agent_ids,
-            &config.ollama_url,
-            auth,
+            config,
+            state.logger.clone(),
         )
         .await?;
 
@@ -1140,11 +1136,18 @@ async fn provider_generate_identity(
 #[tauri::command]
 async fn generate_question(state: tauri::State<'_, AppState>) -> Result<String, String> {
     let config = state.get_config();
-    let model = config.ollama_model.clone();
 
     let prompt = "Generate a single, short, provocative, and open-ended philosophical or ethical question for an AI council to debate. The question should be deep and require nuanced thinking. Do not include any preamble, explanation, or quotes. Just the question itself.".to_string();
 
-    ollama::ask_ollama_internal(&state, model, prompt, None).await.map(|q| q.trim().to_string())
+    provider_dispatch::generate_with_default(
+        prompt,
+        None,
+        &config,
+        Some(state.logger.clone()),
+        None,
+    )
+    .await
+    .map(|q| q.trim().to_string())
 }
 
 #[tauri::command]

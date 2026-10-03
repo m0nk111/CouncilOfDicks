@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use feed_rs::parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
@@ -66,6 +67,18 @@ pub struct TopicSetRequest {
 }
 
 #[derive(Deserialize)]
+pub struct TopicEnqueueRequest {
+    pub topic: String,
+}
+
+#[derive(Deserialize)]
+pub struct FeedPreviewRequest {
+    pub url: String,
+    pub limit: Option<usize>,
+    pub source_name: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct TopicHistoryRequest {
     pub limit: Option<usize>,
 }
@@ -99,6 +112,20 @@ pub struct ApiResponse<T> {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FeedPreviewItem {
+    pub title: String,
+    pub link: Option<String>,
+    pub published: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FeedPreviewResponse {
+    pub source_name: String,
+    pub resolved_url: String,
+    pub items: Vec<FeedPreviewItem>,
+}
+
 impl<T: Serialize> ApiResponse<T> {
     fn ok(data: T) -> Self {
         Self {
@@ -128,8 +155,13 @@ async fn get_config(State(state): State<WebState>) -> Response {
     (
         StatusCode::OK,
         Json(ApiResponse::ok(serde_json::json!({
+            "guardian_url": config.guardian_url,
+            "guardian_model": config.guardian_model,
             "ollama_url": config.ollama_url,
             "ollama_model": config.ollama_model,
+            "default_generation_provider": config.default_generation_provider,
+            "default_generation_model": config.default_generation_model,
+            "openai_base_url": config.openai_base_url,
             "debug_enabled": config.debug_enabled,
             "user_handle": config.user_handle,
         }))),
@@ -304,18 +336,7 @@ async fn create_council_session(
     State(state): State<WebState>,
     Json(req): Json<CouncilSessionRequest>,
 ) -> Response {
-    let (ollama_url, auth) = {
-        let config = state
-            .app_state
-            .config
-            .lock()
-            .expect("Failed to lock config");
-        // Ollama Guardian uses username-only auth (app name), password is optional
-        let auth = config.ollama_username.as_ref().map(|u| {
-            (u.clone(), config.ollama_password.clone().unwrap_or_default())
-        });
-        (config.ollama_url.clone(), auth)
-    };
+    let config = state.app_state.get_config();
 
     match state
         .council_manager
@@ -323,8 +344,8 @@ async fn create_council_session(
             req.question,
             state.agent_pool.clone(),
             req.agent_ids,
-            &ollama_url,
-            auth,
+            config,
+            state.app_state.logger.clone(),
         )
         .await
     {
@@ -469,6 +490,133 @@ async fn stop_topic(State(state): State<WebState>) -> Response {
     (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
 }
 
+async fn enqueue_topic(
+    State(state): State<WebState>,
+    Json(req): Json<TopicEnqueueRequest>,
+) -> Response {
+    match state
+        .app_state
+        .topic_manager
+        .enqueue_topic_with_announcement(&state.app_state, req.topic)
+    {
+        Ok(_) => {
+            let status = state.app_state.topic_manager.get_status();
+            (StatusCode::OK, Json(ApiResponse::ok(status))).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<String>::err(e)),
+        )
+            .into_response(),
+    }
+}
+
+async fn preview_feed(
+    State(state): State<WebState>,
+    Json(req): Json<FeedPreviewRequest>,
+) -> Response {
+    let limit = req.limit.unwrap_or(8).clamp(1, 20);
+    let client = reqwest::Client::new();
+
+    let response = match client
+        .get(&req.url)
+        .header(header::USER_AGENT, "CouncilOfDicks/0.6 feed-preview")
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(e) => {
+            state.app_state.log_error(
+                "web_server",
+                &format!("❌ Feed fetch failed for {}: {}", req.url, e),
+            );
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(ApiResponse::<String>::err(format!("Failed to fetch feed: {}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    let resolved_url = response.url().to_string();
+    let bytes = match response.bytes().await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(ApiResponse::<String>::err(format!("Failed to read feed body: {}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    let feed = match parser::parse(&bytes[..]) {
+        Ok(feed) => feed,
+        Err(e) => {
+            state.app_state.log_warn(
+                "web_server",
+                &format!("⚠️ Feed parse failed for {}: {}", req.url, e),
+            );
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::<String>::err(format!("Unsupported or invalid feed: {}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    let source_name = req
+        .source_name
+        .filter(|name| !name.trim().is_empty())
+        .or_else(|| feed.title.as_ref().map(|title| title.content.clone()))
+        .unwrap_or_else(|| "Custom Feed".to_string());
+
+    let items = feed
+        .entries
+        .into_iter()
+        .filter_map(|entry| {
+            let title = entry.title?.content.trim().to_string();
+            if title.is_empty() {
+                return None;
+            }
+
+            let link = entry
+                .links
+                .iter()
+                .find(|link| link.rel.as_deref() == Some("alternate"))
+                .or_else(|| entry.links.first())
+                .map(|link| link.href.clone());
+
+            let published = entry
+                .published
+                .or(entry.updated)
+                .map(|timestamp| timestamp.to_rfc3339());
+
+            Some(FeedPreviewItem {
+                title,
+                link,
+                published,
+            })
+        })
+        .take(limit)
+        .collect::<Vec<_>>();
+
+    state.app_state.log_info(
+        "web_server",
+        &format!("📰 Feed preview loaded: {} ({} items)", source_name, items.len()),
+    );
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::ok(FeedPreviewResponse {
+            source_name,
+            resolved_url,
+            items,
+        })),
+    )
+        .into_response()
+}
+
 async fn get_topic_history(
     State(state): State<WebState>,
     Query(req): Query<TopicHistoryRequest>,
@@ -497,11 +645,17 @@ pub async fn generate_question(
     State(state): State<WebState>,
 ) -> Result<Json<String>, StatusCode> {
     let config = state.app_state.get_config();
-    let model = config.ollama_model.clone();
-
     let prompt = config.question_generation_prompt.clone();
 
-    match crate::ollama::ask_ollama_internal(&state.app_state, model, prompt, None).await {
+    match crate::provider_dispatch::generate_with_default(
+        prompt,
+        None,
+        &config,
+        Some(state.app_state.logger.clone()),
+        None,
+    )
+    .await
+    {
         Ok(question) => Ok(Json(question.trim().to_string())),
         Err(e) => {
             eprintln!("❌ Failed to generate question: {}", e);
@@ -560,8 +714,10 @@ pub fn create_router(state: WebState) -> Router {
         .route("/api/pohv/heartbeat", post(pohv_heartbeat))
         .route("/api/topic/status", get(get_topic_status))
         .route("/api/topic/set", post(set_topic))
+        .route("/api/topic/enqueue", post(enqueue_topic))
         .route("/api/topic/stop", post(stop_topic))
         .route("/api/topic/history", get(get_topic_history))
+        .route("/api/topic/feed/preview", post(preview_feed))
         .route("/api/chat/status", get(get_chat_status))
         .route("/api/council/generate_question", post(generate_question))
         .route("/api/user/handle", post(set_user_handle))

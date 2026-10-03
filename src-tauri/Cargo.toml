@@ -34,6 +34,9 @@ rand = "0.8"
 base64 = "0.22"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 
+# Local reusable library (separate repo in this workspace)
+free_llm_rate_limiter = { path = "../../free_llm_rate_limiter" }
+
 # Database & Vector Search
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "migrate"] }
 sqlite-vec = "0.1"
@@ -46,6 +49,7 @@ axum = { version = "0.7", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 hyper = "1.0"
+feed-rs = "2.3"
 
 # P2P networking
 libp2p = { version = "0.54", features = [

@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+
+use free_llm_rate_limiter::MinIntervalLimiter;
 
 /// Minimum time between requests to avoid rate limiting (4 seconds = 15 RPM safe)
 const MIN_REQUEST_INTERVAL_MS: u64 = 4000;
@@ -142,8 +143,8 @@ pub struct GoogleProvider {
     embedding_model: String,
     timeout: Duration,
     logger: Arc<Logger>,
-    /// Track last request time for rate limiting
-    last_request: Arc<Mutex<Option<Instant>>>,
+    /// Rate limiter to keep requests within free-tier RPM constraints
+    rate_limiter: MinIntervalLimiter,
 }
 
 impl GoogleProvider {
@@ -166,26 +167,23 @@ impl GoogleProvider {
             embedding_model: "gemini-embedding-001".to_string(), // Updated embedding model
             timeout: Duration::from_secs(120),
             logger,
-            last_request: Arc::new(Mutex::new(None)),
+            rate_limiter: MinIntervalLimiter::new(Duration::from_millis(MIN_REQUEST_INTERVAL_MS)),
         }
     }
 
     /// Wait for rate limit if needed (ensures MIN_REQUEST_INTERVAL_MS between requests)
     async fn wait_for_rate_limit(&self) {
-        let mut last = self.last_request.lock().await;
-        if let Some(last_time) = *last {
-            let elapsed = last_time.elapsed().as_millis() as u64;
-            if elapsed < MIN_REQUEST_INTERVAL_MS {
-                let wait_time = MIN_REQUEST_INTERVAL_MS - elapsed;
-                self.logger.log(
-                    LogLevel::Debug,
-                    "google_provider",
-                    &format!("⏳ [Google] Rate limit: waiting {}ms before next request", wait_time),
-                );
-                tokio::time::sleep(Duration::from_millis(wait_time)).await;
-            }
+        let waited = self.rate_limiter.acquire().await;
+        if !waited.is_zero() {
+            self.logger.log(
+                LogLevel::Debug,
+                "google_provider",
+                &format!(
+                    "⏳ [Google] Rate limit: waiting {}ms before next request",
+                    waited.as_millis()
+                ),
+            );
         }
-        *last = Some(Instant::now());
     }
 
     /// Set embedding model
